@@ -30,7 +30,14 @@ def construct_aggregated_portfolio(market_condition_probs, data):
     return portfolio
   
   
-  
+  # Define function to update portfolio
+def update_portfolio(portfolio, data, risk_free_rate, thresholds, frequency):
+    # Identify current market condition
+    market_condition_probs = identify_market_condition(data)
+
+    # Construct aggregated portfolio weighted to each market condition
+    portfolio = construct_aggregated_portfolio(market_condition)
+    return portfolio
   
   
   # Set initial portfolio

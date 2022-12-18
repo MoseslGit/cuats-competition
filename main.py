@@ -57,7 +57,6 @@ class TradingStrategy(QCAlgorithm):
             self.first_iteration = False
         else:
             # Update portfolio
-            market_condition = train_model.identify_market_condition(data)
             self.portfolio = strategies.update(self.portfolio, data, market_condition)
 
             # Check if it is time to rebalance portfolio

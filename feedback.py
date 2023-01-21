@@ -1,25 +1,18 @@
 import numpy as np
 
 def adjust(portfolio, data, risk_free_rate, thresholds):
-    # Calculate risk for each asset
+    
     risks = calculate_risk(data)
-    
-    # Calculate return potential for each asset
     returns = calculate_return(data)
-    
-    # Calculate diversification benefits for each asset
     diversification = calculate_diversification(data)
-    
-    # Calculate Sharpe ratio for each asset
     sharpe_ratios = (returns - risk_free_rate) / risks
     
-    # Calculate threshold Sharpe ratio value for each asset
+    # Threshold sharpe ratio as cutoff point for when we reallocate asset, based on diverification, return, and potential risks.
     threshold_sharpe_ratios = (thresholds['risk_factor'] * risks) + (thresholds['return_factor'] * returns) + (thresholds['diversification_factor'] * diversification)
-    
-    # Initialize empty list to store new weights
+
     new_weights = []
     
-    # Calculate new weights for each asset
+    # Remove any assets that are underperforming, and replace them with greater allocations of "good" assets
     for i, symbol in enumerate(data.Keys):
         if sharpe_ratios[i] >= threshold_sharpe_ratios[i]:
             new_weight = 1 / len(data.Keys)  # equally weight all assets

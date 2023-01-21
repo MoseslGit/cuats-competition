@@ -80,6 +80,7 @@ class TradingStrategy(QCAlgorithm):
                     symbol_data.dispose()
         self.securities.extend(changes.AddedSecurities)
 
+
     # get the top 10 ETFs in each category
     def CoarseSelectionFunction(self, coarse):
         # Filter out ETFs
@@ -116,24 +117,6 @@ class TradingStrategy(QCAlgorithm):
         # Return the top 10 ETFs in each category
         return [x.Symbol for x in top10_tech] + [x.Symbol for x in top10_commodity] + [x.Symbol for x in top10_bond] + [x.Symbol for x in top10_real_estate]
 
-    def GetInsights(self):
-        insights = []
-        for security in self.securities:
-            symbol_data = self.symbol_data_by_symbol[security.Symbol]
-            # Get market condition
-            market_condition = strategies.identify_market(self.model, symbol_data.indicator.Current.Value)
-            # Get insight
-            insight = strategies.get_insight(self.model, symbol_data.indicator.Current.Value, market_condition)
-            # Add insight to list
-            insights.append(insight)
-        return insights
-
-
-    def rebalance_portfolio(self):
-        # Get insights
-        insights = self.GetInsights()
-        # Set portfolio targets
-        self.SetHoldings(insights)
 
     def OnData(self, data):
 
@@ -151,14 +134,18 @@ class TradingStrategy(QCAlgorithm):
                 symbol_data = self.symbol_data_by_symbol[security.Symbol]
                 symbol_data.indicator.Update(self.Time, data[security.Symbol].Close)
 
-        # Every month check market condition and rebalance portfolio
+        # Every month check market condition and update portfolio
         if self.Time.day % 30 == 0:
 
             market_condition = strategies.identify_market(self.model, symbol_data.indicator.Current.Value)
             # Update portfolio
-            self.portfolio = strategies.update(self.portfolio, data, market_condition)
+            updated_portfolio = strategies.update(self.portfolio, data, market_condition)
+            for symbol in self.portfolio.items():
+                if symbol not in rebalanced_portfolio:
+                    self.Liquidate(symbol, 'Not selected')
+            self.SetHoldings(symbol, self.portfolio[symbol])
 
-        #Else every week use feedback to rebalance portfolio
+        #Else every week rebalance portfolio
         elif self.Time.day % 7 == 0:
             rebalanced_portfolio = feedback.adjust(self.portfolio, data, self.model, self.risk_free_rate, self.thresholds)
             for symbol in self.portfolio.items():

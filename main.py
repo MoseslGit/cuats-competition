@@ -15,6 +15,7 @@ from datetime import datetime
 import train_model
 import strategies
 import feedback
+import MorningstarSectorCode
 
 
 class TradingStrategy(QCAlgorithm):
@@ -46,76 +47,61 @@ class TradingStrategy(QCAlgorithm):
         # Set portfolio construction model
         self.SetPortfolioConstruction(InsightWeightingPortfolioConstructionModel())
 
-        # Set execution model
-        self.SetExecution(ImmediateExecutionModel())
-
-        # full list of equities we consider here, including major indexes and ETFs
-        full_equity_list = [
-            'SPY',
-            'QQQ',
-            'IWM',
-            'EEM',
-            'TLT',
-            'GLD',
-            'VXX',
-            'XLF',
-            'XLE',
-            'XLI',
-            'XLP',
-            'XLV',
-        ]
-
-        # full list of bonds used here
-        full_bond_list = [
-            'SHY',
-            'IEF',
-            'TLT',
-            'LQD',
-            'HYG',
-            'EMB',
-            'TIP',
-        ]
-
-        # Add data for equities considered
-        for symbol in full_equity_list:
-            self.AddEquity(symbol, Resolution.Daily)
-        
-        # Add data for bonds considered
-        for symbol in full_bond_list:
-            self.AddEquity(symbol, Resolution.Daily)
-
-        # initialize portfolio
-        self.SetPortfolioConstruction(ConfidenceWeightedOptimizationPortfolioConstructionModel())
-        self.SetExecution(ImmediateExecutionModel())
-        self.SetRiskManagement(NullRiskManagementModel())
+        self.securities = []
+        self.symbol_data_by_symbol = {}
 
         self.frequency = 5  # rebalance portfolio every 5 days
         self.SetWarmUp(100)
         self.Schedule.On(self.DateRules.EveryDay(self.Symbols), self.TimeRules.AfterMarketOpen(self.Symbols), self.rebalance_portfolio)
 
+
+    def OnSecuritiesChanged(self, changes: SecurityChanges) -> None:
+
+        for security in changes.AddedSecurities:
+            self.symbol_data_by_symbol[security.Symbol] = SymbolData() # You need to define this class
+
+        for security in changes.RemovedSecurities:
+            if security in self.securities:
+                self.securities.remove(security)
+                self.symbol_data_by_symbol.pop(security.Symbol, None)
+            
+        self.securities.extend(changes.AddedSecurities)
+
+    # get the top 10 ETFs in each category
     def CoarseSelectionFunction(self, coarse):
-        # Sort stocks by daily dollar volume and take the top 20
-        sortedByDollarVolume = sorted(coarse, key=lambda x: x.DollarVolume, reverse=True)
-        top20 = sortedByDollarVolume[:20]
+        # Filter out ETFs
+        etfs = [x for x in coarse if x.HasFundamentalData and x.Price > 10]
 
-        # Filter out stocks with fundamental data
-        filtered = [x for x in top20 if x.HasFundamentalData]
+        # Sort ETFs by daily dollar volume and take the top 10
+        sortedByDollarVolume = sorted(etfs, key=lambda x: x.DollarVolume, reverse=True)
+        top10 = sortedByDollarVolume[:10]
 
-        # Sort stocks by daily dollar volume and take the top 20
-        sortedByDollarVolume = sorted(filtered, key=lambda x: x.DollarVolume, reverse=True)
-        top20 = sortedByDollarVolume[:20]
+        return [x.Symbol for x in top10]
 
-        return [x.Symbol for x in top20]
-    
+    # keep only the ETFs in tech, commodities, bonds, and real estate
     def FineSelectionFunction(self, fine):
-        # Filter out stocks with fundamental data
-        filtered = [x for x in fine if x.HasFundamentalData]
+        # Filter ETFs by category
+        tech_etfs = [x for x in fine if x.AssetClassification.MorningstarSectorCode == MorningstarSectorCode.InformationTechnology]
+        commodity_etfs = [x for x in fine if x.AssetClassification.MorningstarSectorCode == MorningstarSectorCode.Materials]
+        bond_etfs = [x for x in fine if x.AssetClassification.MorningstarSectorCode == MorningstarSectorCode.Bonds]
+        real_estate_etfs = [x for x in fine if x.AssetClassification.MorningstarSectorCode == MorningstarSectorCode.RealEstate]
 
-        # Sort stocks by daily dollar volume and take the top 20
-        sortedByDollarVolume = sorted(filtered, key=lambda x: x.DollarVolume, reverse=True)
-        top20 = sortedByDollarVolume[:20]
+        # Sort ETFs by market cap and take the top 10
+        sortedByMarketCap = sorted(tech_etfs, key=lambda x: x.EarningReports.BasicAverageShares.ThreeMonths, reverse=True)
+        top10_tech = sortedByMarketCap[:10]
 
-        return [x.Symbol for x in top20]
+        sortedByMarketCap = sorted(commodity_etfs, key=lambda x: x.EarningReports.BasicAverageShares.ThreeMonths, reverse=True)
+        top10_commodity = sortedByMarketCap[:10]
+
+        sortedByMarketCap = sorted(bond_etfs, key=lambda x: x.EarningReports.BasicAverageShares.ThreeMonths, reverse=True)
+        top10_bond = sortedByMarketCap[:10]
+
+        sortedByMarketCap = sorted(real_estate_etfs, key=lambda x: x.EarningReports.BasicAverageShares.ThreeMonths, reverse=True)
+        top10_real_estate = sortedByMarketCap[:10]
+    
+
+        # Return the top 10 ETFs in each category
+        return [x.Symbol for x in top10_tech] + [x.Symbol for x in top10_commodity] + [x.Symbol for x in top10_bond] + [x.Symbol for x in top10_real_estate]
 
     def rebalance_portfolio(self):
         # Get insights

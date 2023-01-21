@@ -1,4 +1,9 @@
 import pandas as pd
+from sklearn.model_selection import train_test_split
+from sklearn.externals import joblib
+
+#Can use history library quantconnect here?
+
 
 def preprocess_data(data_path):
   # import data from CSV file
@@ -28,3 +33,15 @@ def identify_market_condition(data):
     # Placeholder function to identify market condition and calculate probabilities
     return probabilities
 
+def main():
+    # preprocess data
+    X_train, X_test, y_train, y_test = preprocess_data('data.csv')
+
+    # train model
+    model = train(X_train, y_train)
+
+    # identify market condition
+    probabilities = identify_market_condition(X_test)
+
+    # save model
+    joblib.dump(model, 'model.joblib')

@@ -55,39 +55,51 @@ def adjust(portfolio, data, risk_free_rate, thresholds):
 
     return portfolio
 
-def calculate_risk(data):
+def calculate_macd(prices, short_window, long_window):
+    # Calculate short window exponential moving average
+    short_ema = prices.ewm(span=short_window, adjust=False).mean()
+
+    # Calculate long window exponential moving average
+    long_ema = prices.ewm(span=long_window, adjust=False).mean()
+
+    # Calculate moving average convergence divergence
+    macd = short_ema - long_ema
+
+    return macd
+    
+def calculate_risk(data, portfolio):
     # Initialize empty list to store risks
     risks = []
     
     # Calculate standard deviation of returns for each asset
-    for symbol in data.Keys:
+    for symbol in portfolio:
         returns = data[symbol].Returns
         risk = np.std(returns)
         risks.append(risk)
         
     return risks
 
-def calculate_return(data):
+def calculate_return(data, portfolio):
     # Initialize empty list to store returns
     returns = []
     
     # Calculate mean of returns for each asset
-    for symbol in data.Keys:
+    for symbol in portfolio:
         asset_returns = data[symbol].Returns
         mean_return = np.mean(asset_returns)
         returns.append(mean_return)
         
     return returns
 
-def calculate_diversification(data):
+def calculate_diversification(data, portfolio):
     # Initialize empty list to store diversification benefits
     diversification = []
     
     # Calculate diversification benefits for each asset
-    for symbol in data.Keys:
+    for symbol in portfolio:
         # Calculate pairwise correlations between asset and all other assets
         correlations = []
-        for compare_symbol in data.Keys:
+        for compare_symbol in portfolio:
             if symbol != compare_symbol:
                 asset_returns = data[symbol].Returns
                 compare_asset_returns = data[compare_symbol].Returns

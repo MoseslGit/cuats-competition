@@ -41,16 +41,26 @@ class TradingStrategy(QCAlgorithm):
         #Import trained market identification model
         self.model = train_model.load_model()
 
+        #Manual universe selection
+        #tickers = ['TSLA', 'AAPL']
+        #symbols = []
+        # loop through the tickers list and create symbols for the universe
+        #for i in range(len(tickers)):
+        #    symbols.append(Symbol.Create(tickers[i], SecurityType.Equity, Market.USA))
+        #    allocationPlot.AddSeries(Series(tickers[i], SeriesType.Line, ''))
+        #self.AddChart(allocationPlot)
+        #self.SetUniverseSelection(ManualUniverseSelectionModel(symbols))
+
         # Add universe of 10 largest ETFs, 10 largest stocks, and 10 largest bonds
         self.AddUniverse(self.CoarseSelectionFunction, self.FineSelectionFunction)
-
-        # Set portfolio construction model
-        self.SetPortfolioConstruction(InsightWeightingPortfolioConstructionModel())
 
         self.securities = []
         self.symbol_data_by_symbol = {}
 
+        self.portfolio = {}
+
         self.frequency = 5  # rebalance portfolio every 5 days
+        self.first_iteration = True
         self.SetWarmUp(100)
         self.Schedule.On(self.DateRules.EveryDay(self.Symbols), self.TimeRules.AfterMarketOpen(self.Symbols), self.rebalance_portfolio)
 
@@ -63,8 +73,11 @@ class TradingStrategy(QCAlgorithm):
         for security in changes.RemovedSecurities:
             if security in self.securities:
                 self.securities.remove(security)
-                self.symbol_data_by_symbol.pop(security.Symbol, None)
-            
+            if security.Symbol in self.symbol_data_by_symbol:
+                symbol_data = self.symbol_data_by_symbol.pop(security.Symbol, None)
+                #get rid of unnecessary data
+                if symbol_data:
+                    symbol_data.dispose()
         self.securities.extend(changes.AddedSecurities)
 
     # get the top 10 ETFs in each category
@@ -103,6 +116,19 @@ class TradingStrategy(QCAlgorithm):
         # Return the top 10 ETFs in each category
         return [x.Symbol for x in top10_tech] + [x.Symbol for x in top10_commodity] + [x.Symbol for x in top10_bond] + [x.Symbol for x in top10_real_estate]
 
+    def GetInsights(self):
+        insights = []
+        for security in self.securities:
+            symbol_data = self.symbol_data_by_symbol[security.Symbol]
+            # Get market condition
+            market_condition = strategies.identify_market(self.model, symbol_data.indicator.Current.Value)
+            # Get insight
+            insight = strategies.get_insight(self.model, symbol_data.indicator.Current.Value, market_condition)
+            # Add insight to list
+            insights.append(insight)
+        return insights
+
+
     def rebalance_portfolio(self):
         # Get insights
         insights = self.GetInsights()
@@ -114,54 +140,28 @@ class TradingStrategy(QCAlgorithm):
         if self.IsWarmingUp:
             return
 
-        # Get market condition
-        market_condition = strategies.identify_market(self.model, data)
+        # If this is the first iteration, create initial portfolio based off historical data
+        if self.first_iteration:
+            self.portfolio = strategies.construct_portfolio(self.securities, data, self.risk_free_rate, self.thresholds)
+            self.first_iteration = False
 
-        # Update holdings based on market condition according to respective strategy in strategies.py
-        
+        else: 
+            # Update indicators
+            for security in self.securities:
+                symbol_data = self.symbol_data_by_symbol[security.Symbol]
+                symbol_data.indicator.Update(self.Time, data[security.Symbol].Close)
 
-        '''else:
+        # Every month check market condition and rebalance portfolio
+        if self.Time.day % 30 == 0:
+
+            market_condition = strategies.identify_market(self.model, symbol_data.indicator.Current.Value)
             # Update portfolio
             self.portfolio = strategies.update(self.portfolio, data, market_condition)
 
-            # Check if it is time to rebalance portfolio
-            if self.Time.day % self.frequency == 0:
-                # Rebalance portfolio
-                self.portfolio = feedback.adjust(self.portfolio, data, self.risk_free_rate, self.thresholds)
-                
-                # Execute trades to adjust portfolio
-                for i, symbol in enumerate(self.portfolio):
-                    asset_weight = self.portfolio[i]  # weight of asset in portfolio
-                    asset_holdings = self.Portfolio[symbol].Quantity  # current holdings of asset
-
-                    # Calculate number of shares to buy or sell
-                    shares = int(asset_weight * self.Portfolio.TotalPortfolioValue / data[symbol].Price) - asset_holdings
-
-                    # Check if we need to buy or sell
-                    if shares > 0:
-                        # Buy shares
-                        self.Buy(symbol, shares)
-                    elif shares < 0:
-                        # Sell shares
-                        self.Sell(symbol, -shares)
-                    if shares == 0:
-                        continue  # skip to next asset
-
-                    if not self.Securities[symbol].IsTradable:
-                        self.Log(f'{symbol} is not tradable')
-                        continue  # skip to next asset
-                    try:
-                        # Buy shares
-                        self.Buy(symbol, shares)
-                    except Exception as e:
-                        self.Log(f'Error executing trade for {symbol}: {e}')
-                    # Log trade details
-                    self.Log(f'Traded {shares} shares of {symbol} at {data[symbol].Price:.2f}')
-                    self.Log(f'Updated portfolio weights: {self.portfolio}')
-                    # Update portfolio value and cash balance
-                    self.Portfolio.SetCash(self.Portfolio.Cash + shares * data[symbol].Price)
-                    self.Portfolio.SetHoldings(symbol, asset_weight, self.Portfolio.TotalPortfolioValue)''''''
-
-
-
-                        
+        #Else every week use feedback to rebalance portfolio
+        elif self.Time.day % 7 == 0:
+            rebalanced_portfolio = feedback.adjust(self.portfolio, data, self.model, self.risk_free_rate, self.thresholds)
+            for symbol in self.portfolio.items():
+                if symbol not in rebalanced_portfolio:
+                    self.Liquidate(symbol, 'Not selected')
+            self.SetHoldings(symbol, self.portfolio[symbol])

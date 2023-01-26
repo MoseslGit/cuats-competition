@@ -1,5 +1,4 @@
 from AlgorithmImports import *
-from InsightWeightingPortfolioConstructionModel import InsightWeightingPortfolioConstructionModel
 
 from quantconnect.algorithm import QCAlgorithm
 from quantconnect.data import Market

@@ -13,7 +13,7 @@ from datetime import datetime
 
 import train_model
 import strategies
-import feedback
+import rebalance
 import MorningstarSectorCode
 
 
@@ -65,7 +65,8 @@ class TradingStrategy(QCAlgorithm):
 
 
     def OnSecuritiesChanged(self, changes: SecurityChanges) -> None:
-
+        for security in changes.AddedSecurities:
+            security.SetLeverage(10)
         for security in changes.AddedSecurities:
             self.symbol_data_by_symbol[security.Symbol] = SymbolData() # You need to define this class
 
@@ -119,8 +120,12 @@ class TradingStrategy(QCAlgorithm):
 
     def OnData(self, data):
 
-        if self.IsWarmingUp:
+        if not self.slow.IsReady and not self.IsWarmingUp:
             return
+        
+        # only once per day
+        if self.previous is not None and self.previous.date() == self.Time.date():
+            return 
 
         # If this is the first iteration, create initial portfolio based off historical data
         if self.first_iteration:
@@ -146,8 +151,10 @@ class TradingStrategy(QCAlgorithm):
 
         #Else every week rebalance portfolio
         elif self.Time.day % 7 == 0:
-            rebalanced_portfolio = feedback.adjust(self.portfolio, data, self.model, self.risk_free_rate, self.thresholds)
+            rebalanced_portfolio = rebalance.adjust(self.portfolio, data, self.model, self.risk_free_rate, self.thresholds)
             for symbol in self.portfolio.items():
                 if symbol not in rebalanced_portfolio:
                     self.Liquidate(symbol, 'Not selected')
             self.SetHoldings(symbol, self.portfolio[symbol])
+
+        self.previous = self.Time

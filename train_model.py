@@ -1,47 +1,57 @@
 import pandas as pd
+import torch
+import torch.nn.functional as F
 from sklearn.model_selection import train_test_split
 from sklearn.externals import joblib
+from sklearn.mixture import GaussianMixture
+from AlgorithmImports import *
 
 #Can use history library quantconnect here?
 
 
-def preprocess_data(data_path):
-  # import data from CSV file
-  df = pd.read_csv(data_path)
+# def preprocess_data(data_path):
+#   # import data from CSV file
+#   df = pd.read_csv(data_path)
 
-  # drop null values
-  df.dropna(inplace=True)
+#   # drop null values
+#   df.dropna(inplace=True)
 
-  # split data into training and test sets
-  X_train, X_test, y_train, y_test = train_test_split(df.drop('target', axis=1), df['target'], test_size=0.2)
+#   # split data into training and test sets
+#   X_train, X_test, y_train, y_test = train_test_split(df.drop('target', axis=1), df['target'], test_size=0.2)
 
-  return X_train, X_test, y_train, y_test
+#   return X_train, X_test, y_train, y_test
 
-from sklearn.mixture import GaussianMixture
+class regime_model():
+  """A class to train a Gaussian mixture model to identify market regimes using indicator variables, chosen by looking at previous work from TwoSigma."""
+  def __init__(self, history):
+    """
+    :param history: history data from a QCAlgorithm child class
+    """
+    self.history = history
+    
+  def train(self):
+    # create the Gaussian mixture model
+    model = GaussianMixture(n_components=4)
 
-def train():
-  # create the Gaussian mixture model
-  model = GaussianMixture(n_components=4)
+    # # fit the model to the training data
+    # model.fit(X_train, y_train)
 
-  # fit the model to the training data
-  model.fit(X_train, y_train)
-
-  return model
+    return model
 
     
-def identify_market_condition(data):
-    # Placeholder function to identify market condition and calculate probabilities
-    return probabilities
+  def identify_market_condition(self, data):
+      # Placeholder function to identify market condition and calculate probabilities
+      return probabilities
 
-def main():
-    # preprocess data
-    X_train, X_test, y_train, y_test = preprocess_data('data.csv')
+# def main():
+#     # preprocess data
+#     X_train, X_test, y_train, y_test = preprocess_data('data.csv')
 
-    # train model
-    model = train(X_train, y_train)
+#     # train model
+#     model = train(X_train, y_train)
 
-    # identify market condition
-    probabilities = identify_market_condition(X_test)
+#     # identify market condition
+#     probabilities = identify_market_condition(X_test)
 
-    # save model
-    joblib.dump(model, 'model.joblib')
+#     # save model
+#     joblib.dump(model, 'model.joblib')

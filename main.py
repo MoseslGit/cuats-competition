@@ -2,7 +2,6 @@ from AlgorithmImports import *
 
 import numpy as np
 from datetime import datetime
-
 import train_model
 import strategies
 import rebalance
@@ -70,7 +69,8 @@ class TradingStrategy(QCAlgorithm):
         self.Schedule.On(self.DateRules.EveryDay(self.Symbols), self.TimeRules.AfterMarketOpen(self.Symbols), self.rebalance_portfolio)
         
         # Train model at the end of every month at midnight so that it's ready exactly at month start
-        self.Train(self.DataRules.MonthEnd(0), self.TimeRules.Midnight, self.train_model)
+        self.Train(self.DataRules.MonthEnd(0), self.TimeRules.Midnight, self.predict_model)
+        
 
     def OnSecuritiesChanged(self, changes: SecurityChanges) -> None:
         for security in changes.AddedSecurities:
@@ -125,9 +125,85 @@ class TradingStrategy(QCAlgorithm):
                 if symbol not in rebalanced_portfolio:
                     self.Liquidate(symbol)
                 self.SetHoldings(symbol, rebalanced_portfolio[symbol])
-    
-    def train_model(self):
+
+    def train_model(self, startyear, years):
+        """Method to train model. Should only be called once at initialisation unless update needed.
+        :param int startyear: Start year of training data in YYYY format
+        :param int years: Number of years of training data to use
+        """
         self.Log('Start training at {}'.format(self.Time))
         self.model_is_training = True
-        model = train_model.train()
+        
+        # We want historic data grouped by month. Can do this by requesting data for one month at a time or slicing the whole history array using datetime indices. Here, we will request a month at a time.
+        years = map(str, range(startyear, startyear+years+1))
+        months = map(str, range(1, 13))
+        
+        # # Calculate input data for model
+        # # For market as whole
+        # #1. Monthly return of the market
+        # market_history = self.History(self.spy, 30, Resolution.Daily)
+        # market_return = market_history.Close.pct_change().dropna().mean()
+        # market_return = market_return * 100
+        # #2. Monthly volatility of the market
+        # market_volatility = market_history.Close.pct_change().dropna().std()
+        # market_volatility = market_volatility * 100
+        
+        # # For each security
+        # for security in self.securities:
+        #     history = self.History(security.Symbol, 30, Resolution.Daily)
+        #     # Monthly return of each security
+        #     monthly_return = history.Close.pct_change().dropna().mean()
+        #     monthly_return = monthly_return * 100
+        #     #2. Monthly volatility of each security
+        #     monthly_volatility = history.Close.pct_change().dropna().std()
+        #     monthly_volatility = monthly_volatility * 100
+        #     #3. Covariance of monthly returns of each security and the market
+        #     covariance = history.Close.pct_change().dropna().cov(market_history.Close.pct_change().dropna())
+        #     #4. Beta of each security
+        #     beta = covariance / market_volatility
+        #     #5. Alpha of each security
+        #     alpha = monthly_return - (self.risk_free_rate + beta * (market_return - self.risk_free_rate))
+        #     #6. Sharpe ratio of each security
+        #     sharpe_ratio = (monthly_return - self.risk_free_rate) / monthly_volatility
+        #     #9. Treynor ratio of each security
+        #     treynor_ratio = (monthly_return - self.risk_free_rate) / beta
+        #     #10. Information ratio of each security
+        #     information_ratio = monthly_return / monthly_volatility
+        #     #11. Sortino ratio of each security
+        #     sortino_ratio = (monthly_return - self.risk_free_rate) / monthly_volatility
+        #     #12. Jensen's alpha of each security
+        #     jensens_alpha = (monthly_return - self.risk_free_rate) - (beta * (market_return - self.risk_free_rate))
+        #     #13. Market capitalisation of each security
+        #     market_cap = security.MarketCap
+        #     #14. Price to earnings ratio of each security
+        #     p_e_ratio = security.PriceToEarningsRatio
+        #     #15. Price to book ratio of each security
+        #     p_b_ratio = security.PriceToBookRatio
+        
+        returns = []
+        volatilities = []
+        # Use S&P as market data
+        for year in years:
+            for month in months:
+                start_date_str = year + " " + month + " 01"
+                start_date = Time.ParseDate(date_str)
+                end_date_str = year + " " + month + " 30"
+                end_date = Time.ParseDate(date_str)
+                market_history = self.History(self.spy, start_date, end_date, Resolution.Daily)
+                #1. Monthly return of the market
+                market_return = market_history.Close.pct_change().dropna().mean()
+                market_return = market_return * 100
+                returns.append(market_return)
+                #2. Monthly volatility of the market
+                market_volatility = market_history.Close.pct_change().dropna().std()
+                market_volatility = market_volatility * 100
+                volatilities.append(market_volatility)
+        
+        data = tuple(zip(returns, volatilities))
+        
+        model = train_model.train(data)
         self.model_is_training = False
+    
+    def predict_model(self):
+        """Predict on one datapoint averaged from data from one month"""
+        predict_history = self.History(timedelta(days=30), Resolution.Daily)

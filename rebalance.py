@@ -1,59 +1,32 @@
 import numpy as np
 
-def adjust(portfolio, data, risk_free_rate, thresholds):
-    
-    risks = calculate_risk(data)
-    returns = calculate_return(data)
-    diversification = calculate_diversification(data)
+def adjust(current_portfolio, data, risk_free_rate, thresholds):
+    risks = calculate_risk(data, current_portfolio)
+    returns = calculate_return(data, current_portfolio)
+    diversification = calculate_diversification(data, current_portfolio)
     sharpe_ratios = (returns - risk_free_rate) / risks
     
     # Threshold sharpe ratio as cutoff point for when we reallocate asset, based on diverification, return, and potential risks.
     threshold_sharpe_ratios = (thresholds['risk_factor'] * risks) + (thresholds['return_factor'] * returns) + (thresholds['diversification_factor'] * diversification)
-
-    new_weights = []
     
     # Remove any assets that are underperforming, and replace them with greater allocations of "good" assets
-    for i, symbol in enumerate(data.Keys):
-        if sharpe_ratios[i] >= threshold_sharpe_ratios[i]:
-            new_weight = 1 / len(data.Keys)  # equally weight all assets
-        else:
-            new_weight = 0
-            
-        new_weights.append(new_weight)
-    
-    # Normalize new weights to sum to 1
-    new_weights = new_weights / np.sum(new_weights)
-    
-    # Update portfolio
-    portfolio = new_weights
-    # Calculate MACD for each asset
-    macd_values = []
-    for symbol in data.Keys:
+    for symbol, weight in current_portfolio.items():
         prices = data[symbol].Prices
         macd = calculate_macd(prices, thresholds['short_window'], thresholds['long_window'])
-        macd_values.append(macd)
-
-    # Initialize empty list to store MACD weights
-    macd_weights = []
-
-    # Calculate MACD weights for each asset
-    for i, symbol in enumerate(data.Keys):
-        if macd_values[i] > 0:
-            macd_weight = 1 / len(data.Keys)  # equally weight all assets
+        if sharpe_ratios[symbol] >= threshold_sharpe_ratios[symbol]:
+            if macd > 0:
+                weight *= 1.5
+            else:
+                weight *= 1.2
         else:
-            macd_weight = 0
-        macd_weights.append(macd_weight)
+            if macd > 0:
+                weight *= 0.8
+            else:
+                weight *= 0.5
 
-    # Normalize MACD weights to sum to 1
-    macd_weights = macd_weights / np.sum(macd_weights)
-
-    # Combine Sharpe ratio weights and MACD weights
-    combined_weights = (portfolio + macd_weights) / 2
-
-    # Update portfolio
-    portfolio = combined_weights
-
-    return portfolio
+    total_weight = sum(current_portfolio.values())
+    rebalanced_portfolio = {key: value / total_weight for key, value in current_portfolio.items()}
+    return rebalanced_portfolio
 
 def calculate_macd(prices, short_window, long_window):
     # Calculate short window exponential moving average
@@ -75,19 +48,18 @@ def calculate_risk(data, portfolio):
     for symbol in portfolio:
         returns = data[symbol].Returns
         risk = np.std(returns)
-        risks.append(risk)
+        risks[symbol] = risk
         
     return risks
 
 def calculate_return(data, portfolio):
-    # Initialize empty list to store returns
     returns = []
     
     # Calculate mean of returns for each asset
     for symbol in portfolio:
         asset_returns = data[symbol].Returns
         mean_return = np.mean(asset_returns)
-        returns.append(mean_return)
+        returns[symbol] = mean_return
         
     return returns
 
@@ -111,7 +83,7 @@ def calculate_diversification(data, portfolio):
         
         # Calculate diversification benefit
         diversification_benefit = 1 - avg_correlation
-        diversification.append(diversification_benefit)
+        diversification[symbol] = diversification_benefit
         
     return diversification
 

@@ -1,20 +1,11 @@
 from AlgorithmImports import *
 
-from quantconnect.algorithm import QCAlgorithm
-from quantconnect.data import Market
-from quantconnect.python import (
-    HistoryRequest,
-    PortfolioTarget,
-    OrderDirection,
-    OrderType
-)
 import numpy as np
 from datetime import datetime
 
 import train_model
 import strategies
 import rebalance
-import MorningstarSectorCode
 
 
 class TradingStrategy(QCAlgorithm):
@@ -39,7 +30,6 @@ class TradingStrategy(QCAlgorithm):
 
         #Import trained market identification model
         self.model = train_model.load_model()
-
         #Manual universe selection
         #tickers = ['TSLA', 'AAPL']
         #symbols = []
@@ -50,111 +40,79 @@ class TradingStrategy(QCAlgorithm):
         #self.AddChart(allocationPlot)
         #self.SetUniverseSelection(ManualUniverseSelectionModel(symbols))
 
-        # Add universe of 10 largest ETFs, 10 largest stocks, and 10 largest bonds
-        self.AddUniverse(self.CoarseSelectionFunction, self.FineSelectionFunction)
+        #ETF universe selection
+        #SPY ETF
+        self.spy = self.AddEquity("SPY").Symbol
+        self.AddUniverse(self.Universe.ETF(self.spy, self.UniverseSettings, self.ETFConstituentsFilter))
+        #Gold ETF
+        self.gld = self.AddEquity("GLD").Symbol
+        self.AddUniverse(self.Universe.ETF(self.gld, self.UniverseSettings, self.ETFConstituentsFilter))
+        #QQQ Tech ETF
+        self.qqq = self.AddEquity("QQQ").Symbol
+        self.AddUniverse(self.Universe.ETF(self.qqq, self.UniverseSettings, self.ETFConstituentsFilter))
+        #Bond ETF
+        self.agg = self.AddEquity("AGG").Symbol
+        self.AddUniverse(self.Universe.ETF(self.agg, self.UniverseSettings, self.ETFConstituentsFilter))
 
         self.securities = []
-        self.symbol_data_by_symbol = {}
+        self.weightBySymbol = {}
+        
+        self.Schedule.On(
+            self.DateRules.EveryDay(self.spy),
+            self.TimeRules.AfterMarketOpen(self.spy, 1),
+            self.Rebalance)
 
-        self.portfolio = {}
-
-        self.frequency = 5  # rebalance portfolio every 5 days
-        self.first_iteration = True
         self.SetWarmUp(100)
-        self.Schedule.On(self.DateRules.EveryDay(self.Symbols), self.TimeRules.AfterMarketOpen(self.Symbols), self.rebalance_portfolio)
-
 
     def OnSecuritiesChanged(self, changes: SecurityChanges) -> None:
         for security in changes.AddedSecurities:
             security.SetLeverage(10)
-        for security in changes.AddedSecurities:
-            self.symbol_data_by_symbol[security.Symbol] = SymbolData() # You need to define this class
+            history = self.History(security.Symbol, 7, Resolution.Daily)
+            self.Log(f'{security.Symbol.Value} added to the universe')
+            
 
         for security in changes.RemovedSecurities:
+            self.Log(f'{security.Symbol.Value} removed from to the universe')
             if security in self.securities:
                 self.securities.remove(security)
-            if security.Symbol in self.symbol_data_by_symbol:
-                symbol_data = self.symbol_data_by_symbol.pop(security.Symbol, None)
-                #get rid of unnecessary data
-                if symbol_data:
-                    symbol_data.dispose()
+
         self.securities.extend(changes.AddedSecurities)
 
 
-    # get the top 10 ETFs in each category
-    def CoarseSelectionFunction(self, coarse):
-        # Filter out ETFs
-        etfs = [x for x in coarse if x.HasFundamentalData and x.Price > 10]
-
-        # Sort ETFs by daily dollar volume and take the top 10
-        sortedByDollarVolume = sorted(etfs, key=lambda x: x.DollarVolume, reverse=True)
-        top10 = sortedByDollarVolume[:10]
-
-        return [x.Symbol for x in top10]
-
-    # keep only the ETFs in tech, commodities, bonds, and real estate
-    def FineSelectionFunction(self, fine):
-        # Filter ETFs by category
-        tech_etfs = [x for x in fine if x.AssetClassification.MorningstarSectorCode == MorningstarSectorCode.InformationTechnology]
-        commodity_etfs = [x for x in fine if x.AssetClassification.MorningstarSectorCode == MorningstarSectorCode.Materials]
-        bond_etfs = [x for x in fine if x.AssetClassification.MorningstarSectorCode == MorningstarSectorCode.Bonds]
-        real_estate_etfs = [x for x in fine if x.AssetClassification.MorningstarSectorCode == MorningstarSectorCode.RealEstate]
-
-        # Sort ETFs by market cap and take the top 10
-        sortedByMarketCap = sorted(tech_etfs, key=lambda x: x.EarningReports.BasicAverageShares.ThreeMonths, reverse=True)
-        top10_tech = sortedByMarketCap[:10]
-
-        sortedByMarketCap = sorted(commodity_etfs, key=lambda x: x.EarningReports.BasicAverageShares.ThreeMonths, reverse=True)
-        top10_commodity = sortedByMarketCap[:10]
-
-        sortedByMarketCap = sorted(bond_etfs, key=lambda x: x.EarningReports.BasicAverageShares.ThreeMonths, reverse=True)
-        top10_bond = sortedByMarketCap[:10]
-
-        sortedByMarketCap = sorted(real_estate_etfs, key=lambda x: x.EarningReports.BasicAverageShares.ThreeMonths, reverse=True)
-        top10_real_estate = sortedByMarketCap[:10]
-    
-
-        # Return the top 10 ETFs in each category
-        return [x.Symbol for x in top10_tech] + [x.Symbol for x in top10_commodity] + [x.Symbol for x in top10_bond] + [x.Symbol for x in top10_real_estate]
+    def ETFConstituentsFilter(self, constituents):
+        # Get the 10 securities with the largest weight in the index
+        selected = sorted([c for c in constituents if c.Weight],
+            key=lambda c: c.Weight, reverse=True)[:10]
+        self.weightBySymbol = {c.Symbol: c.Weight for c in selected}
+        
+        return list(self.weightBySymbol.keys())
 
 
     def OnData(self, data):
 
-        if not self.slow.IsReady and not self.IsWarmingUp:
+        if self.IsWarmingUp:
             return
-        
-        # only once per day
-        if self.previous is not None and self.previous.date() == self.Time.date():
-            return 
-
-        # If this is the first iteration, create initial portfolio based off historical data
-        if self.first_iteration:
-            self.portfolio = strategies.construct_portfolio(self.securities, data, self.risk_free_rate, self.thresholds)
-            self.first_iteration = False
-
-        else: 
-            # Update indicators
-            for security in self.securities:
-                symbol_data = self.symbol_data_by_symbol[security.Symbol]
-                symbol_data.indicator.Update(self.Time, data[security.Symbol].Close)
 
         # Every month check market condition and update portfolio
         if self.Time.day % 30 == 0:
 
-            market_condition = strategies.identify_market(self.model, symbol_data.indicator.Current.Value)
+            market_condition = strategies.identify_market(self.model, data)
             # Update portfolio
-            updated_portfolio = strategies.update(self.portfolio, data, market_condition)
-            for symbol in self.portfolio.items():
+            updated_portfolio = strategies.update(self.Portfolio, data, market_condition)
+            for symbol in self.Portfolio.Keys:
                 if symbol not in rebalanced_portfolio:
-                    self.Liquidate(symbol, 'Not selected')
-            self.SetHoldings(symbol, self.portfolio[symbol])
+                    self.Liquidate(symbol)
+                self.SetHoldings(symbol, updated_portfolio[symbol])
 
-        #Else every week rebalance portfolio
-        elif self.Time.day % 7 == 0:
-            rebalanced_portfolio = rebalance.adjust(self.portfolio, data, self.model, self.risk_free_rate, self.thresholds)
-            for symbol in self.portfolio.items():
+        #Else every 2 weeks rebalance portfolio
+        elif self.Time.day % 14 == 0:
+            for i in range(len(self.Portfolio.Keys)):
+                symbol = self.Portfolio.Keys[i]
+                Close = data[symbol].Close
+                currentweight = (self.Portfolio[symbol].Quantity * Close) /self.Portfolio.TotalPortfolioValue
+            current_portfolio = {symbol: currentweight for symbol in self.Portfolio.Keys}
+            rebalanced_portfolio = rebalance.adjust(current_portfolio, data, self.model, self.risk_free_rate, self.thresholds)
+            for symbol in self.Portfolio.Keys:
                 if symbol not in rebalanced_portfolio:
-                    self.Liquidate(symbol, 'Not selected')
-            self.SetHoldings(symbol, self.portfolio[symbol])
-
-        self.previous = self.Time
+                    self.Liquidate(symbol)
+                self.SetHoldings(symbol, rebalanced_portfolio[symbol])

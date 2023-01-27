@@ -1,68 +1,61 @@
-
+import numpy as np
 
 # Define function to execute trading strategy for crisis market condition
-def crisis_strategy(data):
-    # Implement crisis trading strategy here and return suitable basket of assets
-    basket = []
-    return basket
+def crisis_strategy(current_portfolio, historical_data, securities):
+
+    # Trend following, bonds, and gold
+    # Select three symbols with greatest momentum
+
+    updated_portfolio = {}
+    momentum_comparison = {}
+
+    for symbol in securities:
+        prices = historical_data.loc[symbol]['close'].resample('d').last()
+        returns = np.diff(prices) / prices[:-1]
+        # Calculate the momentum over the last 2 weeks
+        momentum_comparison[symbol] = momentum = returns[-14:].mean()
+    # Put the three symbols with the greatest momentum into a list
+    basket = sorted(momentum_comparison, key=momentum_comparison.get, reverse=True)[:3]
+    for symbol in basket:
+        updated_portfolio[symbol] = 0.33
+    updated_portfolio["UBT", "UST"] = 0.33
+
+    return updated_portfolio
 
 # Define function to execute trading strategy for steady state market condition
-def steady_state_strategy(data):
-    # Implement steady state trading strategy here and return suitable basket of assets
-    basket = []
-    return basket
+def steady_state_strategy(current_portfolio, historical_data, securities):
+    # Follow market, equities
+    # Select three symbols with greatest momentum
+    updated_portfolio = {}
+    momentum_comparison = {}
+
+    for symbol in securities:
+        prices = historical_data.loc[symbol]['close'].resample('d').last()
+        returns = np.diff(prices) / prices[:-1]
+        # Calculate the momentum over the last 2 weeks
+        momentum_comparison[symbol] = momentum = returns[-14:].mean()
+    # Put the three symbols with the greatest momentum into a list
+    basket = sorted(momentum_comparison, key=momentum_comparison.get, reverse=True)[:3]
+    if "QQQ" not in basket:
+        basket.append("QQQ")
+    for symbol in basket:
+        updated_portfolio[symbol] = 0.8
+
+    return updated_portfolio
 
 # Define function to execute trading strategy for inflation market condition
-def inflation_strategy(data):
-    # Implement inflation trading strategy here and return suitable basket of assets
-    basket = []
-    return basket
+def inflation_strategy(current_portfolio, historical_data, securities):
+    # Use inflation hedges and gold
+
+    updated_portfolio = {}
+    basket = ["GLD", "UBT", "UST"]
+    for symbol in basket:
+        updated_portfolio[symbol] = 0.8
+    return updated_portfolio
 
 # Define function to execute trading strategy for Walking on Ice market condition
-def woi_strategy(data):
-    # Implement Walking on Ice trading strategy here and return suitable basket of assets
-    basket = []
-    return basket
-
-
-#Call this function from main to update portfolio depending on market conditions
-def update(portfolio, data, risk_free_rate, thresholds, frequency):
-    # Identify market condition and calculate probabilities
-    probabilities = train_model.identify_market_condition(data)
-
-    # Construct aggregated portfolio
-    portfolio = construct_portfolio(data, risk_free_rate, thresholds, probabilities)
-    
-    return portfolio
-
-def construct_portfolio(data, risk_free_rate, thresholds, probabilities):
-    # Initialize empty list to store asset baskets
-    baskets = []
-    
-    # Get asset baskets for each market condition
-    steady_state_basket = steady_state(data, risk_free_rate, thresholds)
-    inflation_basket = inflation(data, risk_free_rate, thresholds)
-    crisis_basket = crisis(data, risk_free_rate, thresholds)
-    walking_on_ice_basket = walking_on_ice(data, risk_free_rate, thresholds)
-    
-    # Append asset baskets to list
-    baskets.append(steady_state_basket)
-    baskets.append(inflation_basket)
-    baskets.append(crisis_basket)
-    baskets.append(walking_on_ice_basket)
-    
-    # Calculate asset weights for each basket
-    weights = probabilities / np.sum(probabilities)
-    
-    # Initialize empty list to store asset weights for each basket
-    basket_weights = []
-    
-    # Calculate asset weights for each basket
-    for basket in baskets:
-        basket_weight = basket * weights
-        basket_weights.append(basket_weight)
-    
-    # Calculate aggregated portfolio
-    aggregated_portfolio = np.sum(basket_weights, axis=0)
-    
-    return aggregated_portfolio
+def woi_strategy(current_portfolio, historical_data, securities):
+    # Scale down on position sizes
+    updated_portfolio = {}
+    updated_portfolio["UST", "UBT"] = 0.2
+    return updated_portfolio

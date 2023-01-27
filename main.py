@@ -55,7 +55,6 @@ class TradingStrategy(QCAlgorithm):
         self.AddUniverse(self.Universe.ETF(self.agg, self.UniverseSettings, self.ETFConstituentsFilter))
 
         self.securities = []
-        self.weightBySymbol = {}
         
         self.Schedule.On(
             self.DateRules.EveryDay(self.spy),
@@ -87,6 +86,22 @@ class TradingStrategy(QCAlgorithm):
         
         return list(self.weightBySymbol.keys())
 
+    def Rebalance(self, data) -> None:
+        spyWeight = sum(self.weightBySymbol.values())
+
+        if spyWeight > 0:
+            currentweight = {}
+            for symbol in self.Portfolio.Keys:
+                Close = data[symbol].Close
+                currentweight[symbol] = (self.Portfolio[symbol].Quantity * Close) /self.Portfolio.TotalPortfolioValue
+            current_portfolio = {symbol: currentweight[symbol] for symbol in self.Portfolio.Keys}
+            symbols = [symbol for symbol in self.Portfolio.Keys]
+            historical_data = self.History(symbols, 30, Resolution.Daily)
+            rebalanced_portfolio = rebalance.adjust(current_portfolio, historical_data, self.risk_free_rate, self.thresholds)
+            for symbol in self.Portfolio.Keys:
+                if symbol not in rebalanced_portfolio:
+                    self.Liquidate(symbol)
+                self.SetHoldings(symbol, rebalanced_portfolio[symbol])
 
     def OnData(self, data):
 
@@ -105,15 +120,3 @@ class TradingStrategy(QCAlgorithm):
                 self.SetHoldings(symbol, updated_portfolio[symbol])
 
         #Else every 2 weeks rebalance portfolio
-        elif self.Time.day % 14 == 0:
-            for symbol in self.Portfolio.Keys:
-                Close = data[symbol].Close
-                currentweight = (self.Portfolio[symbol].Quantity * Close) /self.Portfolio.TotalPortfolioValue
-            current_portfolio = {symbol: currentweight for symbol in self.Portfolio.Keys}
-            symbols = [symbol for symbol in self.Portfolio.Keys]
-            historical_data = self.History(symbols, 30, Resolution.Daily)
-            rebalanced_portfolio = rebalance.adjust(current_portfolio, historical_data, self.risk_free_rate, self.thresholds)
-            for symbol in self.Portfolio.Keys:
-                if symbol not in rebalanced_portfolio:
-                    self.Liquidate(symbol)
-                self.SetHoldings(symbol, rebalanced_portfolio[symbol])

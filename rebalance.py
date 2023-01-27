@@ -1,9 +1,9 @@
 import numpy as np
 
-def adjust(current_portfolio, data, risk_free_rate, thresholds):
-    risks = calculate_risk(data, current_portfolio)
-    returns = calculate_return(data, current_portfolio)
-    diversification = calculate_diversification(data, current_portfolio)
+def adjust(current_portfolio, historical_data, risk_free_rate, thresholds):
+    risks = calculate_risk(historical_data, current_portfolio)
+    returns = calculate_return(historical_data, current_portfolio)
+    diversification = calculate_diversification(historical_data, current_portfolio)
     sharpe_ratios = (returns - risk_free_rate) / risks
     
     # Threshold sharpe ratio as cutoff point for when we reallocate asset, based on diverification, return, and potential risks.
@@ -11,7 +11,7 @@ def adjust(current_portfolio, data, risk_free_rate, thresholds):
     
     # Remove any assets that are underperforming, and replace them with greater allocations of "good" assets
     for symbol, weight in current_portfolio.items():
-        prices = data[symbol].Prices
+        prices = historical_data[symbol]
         macd = calculate_macd(prices, thresholds['short_window'], thresholds['long_window'])
         if sharpe_ratios[symbol] >= threshold_sharpe_ratios[symbol]:
             if macd > 0:
@@ -40,30 +40,30 @@ def calculate_macd(prices, short_window, long_window):
 
     return macd
     
-def calculate_risk(data, portfolio):
+def calculate_risk(historical_data, portfolio):
     # Initialize empty list to store risks
     risks = []
     
     # Calculate standard deviation of returns for each asset
     for symbol in portfolio:
-        returns = data[symbol].Returns
+        returns = np.diff(historical_data[symbol]) / historical_data[symbol][:-1]
         risk = np.std(returns)
         risks[symbol] = risk
         
     return risks
 
-def calculate_return(data, portfolio):
+def calculate_return(historical_data, portfolio):
     returns = []
     
     # Calculate mean of returns for each asset
     for symbol in portfolio:
-        asset_returns = data[symbol].Returns
-        mean_return = np.mean(asset_returns)
+        returns = np.diff(historical_data[symbol]) / historical_data[symbol][:-1]
+        mean_return = np.mean(returns)
         returns[symbol] = mean_return
         
     return returns
 
-def calculate_diversification(data, portfolio):
+def calculate_diversification(historical_data, portfolio):
     # Initialize empty list to store diversification benefits
     diversification = []
     
@@ -73,9 +73,9 @@ def calculate_diversification(data, portfolio):
         correlations = []
         for compare_symbol in portfolio:
             if symbol != compare_symbol:
-                asset_returns = data[symbol].Returns
-                compare_asset_returns = data[compare_symbol].Returns
-                correlation = np.corrcoef(asset_returns, compare_asset_returns)[0][1]
+                returns = np.diff(historical_data[symbol]) / historical_data[symbol][:-1]
+                compared_returns = np.diff(historical_data[compare_symbol]) / historical_data[compare_symbol][:-1]
+                correlation = np.corrcoef(returns, compared_returns)[0][1]
                 correlations.append(correlation)
         
         # Calculate average pairwise correlation

@@ -111,7 +111,8 @@ class TradingStrategy(QCAlgorithm):
                 Close = data[symbol].Close
                 currentweight = (self.Portfolio[symbol].Quantity * Close) /self.Portfolio.TotalPortfolioValue
             current_portfolio = {symbol: currentweight for symbol in self.Portfolio.Keys}
-            rebalanced_portfolio = rebalance.adjust(current_portfolio, data, self.model, self.risk_free_rate, self.thresholds)
+            historical_price = self.History['close'](self.Portfolio.Keys, 14, Resolution.Daily)
+            rebalanced_portfolio = rebalance.adjust(current_portfolio, historical_price, self.model, self.risk_free_rate, self.thresholds)
             for symbol in self.Portfolio.Keys:
                 if symbol not in rebalanced_portfolio:
                     self.Liquidate(symbol)

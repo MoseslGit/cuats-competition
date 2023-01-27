@@ -17,6 +17,7 @@ class TradingStrategy(QCAlgorithm):
         end_date = datetime(2020, 12, 31)
 
         self.SetCash(100000)
+        self.first_iteration = True
         
         # Estimated risk-free rate for calculations
         self.risk_free_rate = 0.05
@@ -108,6 +109,11 @@ class TradingStrategy(QCAlgorithm):
         if self.IsWarmingUp:
             return
 
+        if self.first_iteration:
+            for symbol in self.weightBySymbol:
+                self.SetHoldings(symbol, self.weightBySymbol[symbol])
+            self.first_iteration = False
+            return
         # Every month check market condition and update portfolio
         if self.Time.day % 30 == 0:
 

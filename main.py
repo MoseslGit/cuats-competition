@@ -37,8 +37,11 @@ class TradingStrategy(QCAlgorithm):
             'long_window': 50
         }
 
-        #Import trained market identification model
-        self.model = train_model.load_model()
+        # #Import trained market identification model
+        # self.model = train_model.load_model()
+        
+        # Train model once on initialisation
+        self.Train(self.train_model)
 
         #Manual universe selection
         #tickers = ['TSLA', 'AAPL']
@@ -62,7 +65,9 @@ class TradingStrategy(QCAlgorithm):
         self.first_iteration = True
         self.SetWarmUp(100)
         self.Schedule.On(self.DateRules.EveryDay(self.Symbols), self.TimeRules.AfterMarketOpen(self.Symbols), self.rebalance_portfolio)
-
+        
+        # Train model at the end of every month at midnight so that it's ready exactly at month start
+        self.Train(self.DataRules.MonthEnd(0), self.TimeRules.Midnight, self.train_model)
 
     def OnSecuritiesChanged(self, changes: SecurityChanges) -> None:
 
@@ -119,7 +124,7 @@ class TradingStrategy(QCAlgorithm):
 
     def OnData(self, data):
 
-        if self.IsWarmingUp:
+        if self.IsWarmingUp or self.model_is_training():
             return
 
         # If this is the first iteration, create initial portfolio based off historical data
@@ -151,3 +156,9 @@ class TradingStrategy(QCAlgorithm):
                 if symbol not in rebalanced_portfolio:
                     self.Liquidate(symbol, 'Not selected')
             self.SetHoldings(symbol, self.portfolio[symbol])
+    
+    def train_model(self):
+        self.Log('Start training at {}'.format(self.Time))
+        self.model_is_training = True
+        model = train_model.train()
+        self.model_is_training = False

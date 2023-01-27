@@ -1,89 +1,95 @@
 import numpy as np
 
 def adjust(current_portfolio, historical_data, risk_free_rate, thresholds):
-    risks = calculate_risk(historical_data, current_portfolio)
-    returns = calculate_return(historical_data, current_portfolio)
-    diversification = calculate_diversification(historical_data, current_portfolio)
-    sharpe_ratios = (returns - risk_free_rate) / risks
     
-    # Threshold sharpe ratio as cutoff point for when we reallocate asset, based on diverification, return, and potential risks.
-    threshold_sharpe_ratios = (thresholds['risk_factor'] * risks) + (thresholds['return_factor'] * returns) + (thresholds['diversification_factor'] * diversification)
+    risks, returns, diversification = calculate_factors(historical_data, current_portfolio)
     
+    #calculate current sharpe ratios for each asset
+    #calculate threshold sharpe ratios for each asset - cutoff point for when we reallocate asset, based on diverification, return, and potential risks.
+    sharpe_ratios = {}
+    threshold_sharpe_ratios = {}
+    for symbol, weight in current_portfolio.items():
+        sharpe_ratios[symbol] = (returns[symbol] - risk_free_rate) / risks[symbol]
+        threshold_sharpe_ratios[symbol] = (thresholds['risk_factor'] * risks[symbol]) + (thresholds['return_factor'] * returns[symbol]) + (thresholds['diversification_factor'] * diversification[symbol])
+
     # Remove any assets that are underperforming, and replace them with greater allocations of "good" assets
     for symbol, weight in current_portfolio.items():
-        prices = historical_data[symbol]
+        prices = historical_data.loc[symbol]['close']
         macd = calculate_macd(prices, thresholds['short_window'], thresholds['long_window'])
         if sharpe_ratios[symbol] >= threshold_sharpe_ratios[symbol]:
             if macd > 0:
-                weight *= 1.5
+                current_portfolio[symbol] = weight*1.5
             else:
-                weight *= 1.2
+                current_portfolio[symbol] = weight*1.2
         else:
             if macd > 0:
-                weight *= 0.8
+                current_portfolio[symbol] = weight*0.8
             else:
-                weight *= 0.5
+                current_portfolio[symbol] = weight*0.5
 
-    total_weight = sum(current_portfolio.values())
-    rebalanced_portfolio = {key: value / total_weight for key, value in current_portfolio.items()}
+    total_weight = max(sum(current_portfolio.values()), 1)
+    rebalanced_portfolio = {key: value/total_weight for key, value in current_portfolio.items()}
     return rebalanced_portfolio
 
+def numpy_ewma(data, window):
+
+    alpha = 2 /(window + 1.0)
+    alpha_rev = 1-alpha
+    n = data.shape[0]
+
+    pows = alpha_rev**(np.arange(n+1))
+
+    scale_arr = 1/pows[:-1]
+    offset = data[0]*pows[1:]
+    pw0 = alpha*alpha_rev**(n-1)
+
+    mult = data*pw0*scale_arr
+    cumsums = mult.cumsum()
+    out = offset + cumsums*scale_arr[::-1]
+    return out
+
 def calculate_macd(prices, short_window, long_window):
+    prices = np.array(prices)
     # Calculate short window exponential moving average
-    short_ema = prices.ewm(span=short_window, adjust=False).mean()
+    short_ema = numpy_ewma(prices, short_window).mean()
 
     # Calculate long window exponential moving average
-    long_ema = prices.ewm(span=long_window, adjust=False).mean()
+    long_ema = numpy_ewma(prices, long_window).mean()
 
     # Calculate moving average convergence divergence
     macd = short_ema - long_ema
 
     return macd
     
-def calculate_risk(historical_data, portfolio):
+def calculate_factors(historical_data, portfolio):
+    risks = {}
+    mean_returns = {}
+    diversification = {}
     # Initialize empty list to store risks
-    risks = []
-    
     # Calculate standard deviation of returns for each asset
     for symbol in portfolio:
-        returns = np.diff(historical_data[symbol]) / historical_data[symbol][:-1]
-        risk = np.std(returns)
-        risks[symbol] = risk
-        
-    return risks
-
-def calculate_return(historical_data, portfolio):
-    returns = []
-    
-    # Calculate mean of returns for each asset
-    for symbol in portfolio:
-        returns = np.diff(historical_data[symbol]) / historical_data[symbol][:-1]
-        mean_return = np.mean(returns)
-        returns[symbol] = mean_return
-        
-    return returns
-
-def calculate_diversification(historical_data, portfolio):
-    # Initialize empty list to store diversification benefits
-    diversification = []
-    
-    # Calculate diversification benefits for each asset
-    for symbol in portfolio:
-        # Calculate pairwise correlations between asset and all other assets
+        prices = historical_data.loc[symbol]['close'].resample('d').last()
+        returns = np.diff(prices) / prices[:-1]
+        risks[symbol] = np.std(returns)
+        mean_returns[symbol] = np.mean(returns)
+    # Calculate pairwise correlations between asset and all other assets
         correlations = []
         for compare_symbol in portfolio:
             if symbol != compare_symbol:
-                returns = np.diff(historical_data[symbol]) / historical_data[symbol][:-1]
-                compared_returns = np.diff(historical_data[compare_symbol]) / historical_data[compare_symbol][:-1]
-                correlation = np.corrcoef(returns, compared_returns)[0][1]
+                compare_prices = historical_data.loc[compare_symbol]['close'].resample('d').last()
+                compare_returns = np.diff(compare_prices) / compare_prices[:-1]
+                correlation = np.corrcoef(returns, compare_returns)[0][1]
                 correlations.append(correlation)
         
-        # Calculate average pairwise correlation
+    # Calculate average pairwise correlation
         avg_correlation = np.mean(correlations)
-        
-        # Calculate diversification benefit
+    
+    # Calculate diversification benefit
         diversification_benefit = 1 - avg_correlation
         diversification[symbol] = diversification_benefit
-        
-    return diversification
+
+    return risks, mean_returns, diversification
+    
+
+
 

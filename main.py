@@ -24,8 +24,8 @@ class TradingStrategy(QCAlgorithm):
             'risk_factor': 2.0,
             'return_factor': 1.5,
             'diversification_factor': 0.5,
-            'short_window': 20,
-            'long_window': 50
+            'short_window': 7,
+            'long_window': 14
         }
 
         #Import trained market identification model
@@ -106,13 +106,13 @@ class TradingStrategy(QCAlgorithm):
 
         #Else every 2 weeks rebalance portfolio
         elif self.Time.day % 14 == 0:
-            for i in range(len(self.Portfolio.Keys)):
-                symbol = self.Portfolio.Keys[i]
+            for symbol in self.Portfolio.Keys:
                 Close = data[symbol].Close
                 currentweight = (self.Portfolio[symbol].Quantity * Close) /self.Portfolio.TotalPortfolioValue
             current_portfolio = {symbol: currentweight for symbol in self.Portfolio.Keys}
-            historical_price = self.History['close'](self.Portfolio.Keys, 14, Resolution.Daily)
-            rebalanced_portfolio = rebalance.adjust(current_portfolio, historical_price, self.model, self.risk_free_rate, self.thresholds)
+            symbols = [symbol for symbol in self.Portfolio.Keys]
+            historical_data = self.History(symbols, 30, Resolution.Daily)
+            rebalanced_portfolio = rebalance.adjust(current_portfolio, historical_data, self.risk_free_rate, self.thresholds)
             for symbol in self.Portfolio.Keys:
                 if symbol not in rebalanced_portfolio:
                     self.Liquidate(symbol)

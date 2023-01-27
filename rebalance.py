@@ -27,9 +27,7 @@ def adjust(current_portfolio, historical_data, risk_free_rate, thresholds):
             else:
                 current_portfolio[symbol] = weight*0.5
 
-    total_weight = max(sum(current_portfolio.values()), 1)
-    rebalanced_portfolio = {key: value/total_weight for key, value in current_portfolio.items()}
-    return rebalanced_portfolio
+    return current_portfolio
 
 def numpy_ewma(data, window):
 

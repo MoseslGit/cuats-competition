@@ -113,4 +113,6 @@ class TradingStrategy(QCAlgorithm):
                 for symbol in self.Portfolio.Keys:
                     if symbol not in rebalanced_portfolio:
                         self.Liquidate(symbol)
-                    self.SetHoldings(symbol, rebalanced_portfolio[symbol])
+                for symbol in rebalanced_portfolio:
+                    if (rebalanced_portfolio[symbol] - self.weightBySymbol[symbol])/(rebalanced_portfolio[symbol] + self.weightBySymbol[symbol]) > 0.1:
+                        self.SetHoldings(symbol, rebalanced_portfolio[symbol])

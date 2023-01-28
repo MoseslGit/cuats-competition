@@ -1,11 +1,13 @@
 import numpy as np
 
-def adjust(current_portfolio, historical_data, risk_free_rate, thresholds):
+# Rebalance portfolio based on current portfolio performance
+def adjust(current_portfolio, market_condition, historical_data, risk_free_rate, thresholds):
     
+    # Calculate performance factors for each asset
     risks, returns, diversification = calculate_factors(historical_data, current_portfolio)
     
-    #calculate current sharpe ratios for each asset
-    #calculate threshold sharpe ratios for each asset - cutoff point for when we reallocate asset, based on diverification, return, and potential risks.
+    # Calculate current sharpe ratios for each asset
+    # Calculate threshold sharpe ratios for each asset - cutoff point for when we reallocate asset, based on diverification, return, and potential risks.
     sharpe_ratios = {}
     threshold_sharpe_ratios = {}
     for symbol, weight in current_portfolio.items():
@@ -13,22 +15,35 @@ def adjust(current_portfolio, historical_data, risk_free_rate, thresholds):
         threshold_sharpe_ratios[symbol] = (thresholds['risk_factor'] * risks[symbol]) + (thresholds['return_factor'] * returns[symbol]) + (thresholds['diversification_factor'] * diversification[symbol])
 
     # Remove any assets that are underperforming, and replace them with greater allocations of "good" assets
+    # Depending on the market condition, we may want to reallocate more or less aggressively
     for symbol, weight in current_portfolio.items():
+
+        # In crisis market, bias towards selling; in steady states bias towards top momentum performers
+        # In high inflation situations, rebalance less; in high volatility situations tend to reduce size
+        strong_buy = [1.2, 1.5, 1.2, 1.2]
+        buy = [1, 1.2, 1, 1]
+        sell = [-0.1, 0.8, 0.3, 0.1]
+        strong_sell = [-0.5, 0.3, 0.5, 0.1]
+
+        # Calculate MACD for each asset
         prices = historical_data.loc[symbol]['close']
         macd = calculate_macd(prices, thresholds['short_window'], thresholds['long_window'])
+
+        # If the sharpe ratio is above the threshold, and the MACD is positive, increase allocation to asset
         if sharpe_ratios[symbol] >= threshold_sharpe_ratios[symbol]:
             if macd > 0:
-                current_portfolio[symbol] = weight*1.5
+                current_portfolio[symbol] = weight*strong_buy[market_condition - 1]
             else:
-                current_portfolio[symbol] = weight*1.2
+                current_portfolio[symbol] = weight*buy[market_condition - 1]
         else:
             if macd > 0:
-                current_portfolio[symbol] = weight*0.8
+                current_portfolio[symbol] = weight*sell[market_condition - 1]
             else:
-                current_portfolio[symbol] = weight*0.5
+                current_portfolio[symbol] = abs(weight)*strong_sell[market_condition - 1]
 
     return current_portfolio
 
+# Take exponential weighted moving average, using in MACD calculation
 def numpy_ewma(data, window):
 
     alpha = 2 /(window + 1.0)
@@ -46,6 +61,7 @@ def numpy_ewma(data, window):
     out = offset + cumsums*scale_arr[::-1]
     return out
 
+# Calculate MACD
 def calculate_macd(prices, short_window, long_window):
     prices = np.array(prices)
     # Calculate short window exponential moving average
@@ -58,25 +74,29 @@ def calculate_macd(prices, short_window, long_window):
     macd = short_ema - long_ema
 
     return macd
-    
+
+# Calculate performance factors for each asset
 def calculate_factors(historical_data, portfolio):
     risks = {}
     mean_returns = {}
     diversification = {}
-    # Initialize empty list to store risks
-    # Calculate standard deviation of returns for each asset
+
     for symbol in portfolio:
         prices = historical_data.loc[symbol]['close'].resample('d').last()
         returns = np.diff(prices) / prices[:-1]
+
+        # Get risk and return for asset
         risks[symbol] = np.std(returns)
         mean_returns[symbol] = np.mean(returns)
-    # Calculate pairwise correlations between asset and all other assets
+
+        # Calculate pairwise correlations between asset and all other assets
         correlations = []
         for compare_symbol in portfolio:
             if symbol != compare_symbol:
                 compare_prices = historical_data.loc[compare_symbol]['close'].resample('d').last()
                 compare_returns = np.diff(compare_prices) / compare_prices[:-1]
-                #make sure the two assets have the same number of returns
+
+                # Make sure the two assets have the same number of returns
                 if len(returns) > len(compare_returns):
                     returns = returns[:len(compare_returns)]
                 elif len(compare_returns) > len(returns):

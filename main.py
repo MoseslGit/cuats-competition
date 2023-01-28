@@ -37,7 +37,7 @@ class TradingStrategy(QCAlgorithm):
         self.ticker = ["SPY", "TQQQ", "XAGUSD", "UBT", "UST"]
         # list of securities to be used for history function
         self.historytickers = [spy, tqqq, xagusd, ubt, ust]
-        self.spy = self.historytickers[0]
+        self.spy = spy
         
         # Set initial equal weights
         self.weightBySymbol = {"SPY" : 0.2, "TQQQ" : 0.2, "XAGUSD" : 0.2, "UBT" : 0.2, "UST" : 0.2}
@@ -57,7 +57,7 @@ class TradingStrategy(QCAlgorithm):
 
         # Model setup
         self.model_training = False
-        self.model = self.train_model(1998, 23)
+        self.model = self.train_model(2010, 23)
         
 
     def Rebalance(self):
@@ -114,93 +114,95 @@ class TradingStrategy(QCAlgorithm):
                 self.SetHoldings(symbol, self.weightBySymbol[symbol])
             self.first_iteration = False
 
-    def train_model(self, startyear, years):
-        """Method to train model. Should only be called once at initialisation unless update needed.
-        :param int startyear: Start year of training data in YYYY format
-        :param int years: Number of years of training data to use
-        """
-        self.Debug(str(('Start training at {}'.format(self.Time))))
-        self.model_training = True
-        
-        # We want historic data grouped by month. Can do this by requesting data for one month at a time or slicing the whole history array using datetime indices. Here, we will request a month at a time.
-        years = map(str, range(startyear, startyear+years+1))
-        months = map(str, range(1, 13))
-        
-        spy_returns = []
-        spy_volatilities = []
-        n = years*12
-        # n by 62 array to store all data
-        all_data = np.empty((n, 8))
-        
-        # Use S&P as market data
-        for i in range(len(years)):
-            for j in range(len(months)):
-                data_idx = i*12 + j
-                
-                start_date_str = years[i] + " " + months[j] + " 01"
-                start_date = Time.ParseDate(start_date_str)
-                end_date_str = years[i] + " " + months[j] + " 30"
-                end_date = Time.ParseDate(end_date_str)
-                market_history = self.History(self.spy, start_date, end_date, Resolution.Daily)
-                #1. Monthly return of the market
-                market_return = market_history.close.pct_change().dropna().mean() * 100
-                all_data[data_idx, 0] = market_return
-                spy_returns.append(market_return)
-                #2. Monthly volatility of the market
-                market_volatility = market_history.close.pct_change().dropna().std() * 100
-                all_data[data_idx, 1] = market_volatility
-                spy_volatilities.append(market_volatility)
-                
-                all_returns = []
-                all_volatilities = []
-                all_covariances = []
-                all_betas = []
-                all_alphas = []
-                all_sharpe_ratios = []
-                
-                # For each security
-                for i in range(1, len(self.historytickers)): # omit first ticker (SPY)
-                    var_idx = (i-1)*5
-                    security = self.historytickers[i]
-                    history = self.History(security, 30, Resolution.Daily)
-                    #1. Monthly return of each security
-                    monthly_return = history.close.pct_change().dropna().mean() * 100
-                    all_returns += monthly_return
-                    #2. Monthly volatility of each security
-                    monthly_volatility = history.close.pct_change().dropna().std() * 100
-                    all_volatilities += monthly_volatility
-                    #3. Covariance of monthly returns of each security and the market
-                    covariance = history.close.pct_change().dropna().cov(market_history.close.pct_change().dropna())
-                    all_covariances += covariance
-                    #4. Beta of each security
-                    beta = covariance / market_volatility
-                    all_betas += beta
-                    #5. Alpha of each security
-                    alpha = monthly_return - (self.risk_free_rate + beta * (market_return - self.risk_free_rate))
-                    all_alphas += alpha
-                    #6. Sharpe ratio of each security
-                    sharpe_ratio = (monthly_return - self.risk_free_rate) / monthly_volatility
-                    all_sharpe_ratios += sharpe_ratio
-                    # #7. Treynor ratio of each security
-                    # treynor_ratio = (monthly_return - self.risk_free_rate) / beta
-                    # #8. Information ratio of each security
-                    # information_ratio = monthly_return / monthly_volatility
-                    # #9. Sortino ratio of each security
-                    # sortino_ratio = (monthly_return - self.risk_free_rate) / monthly_volatility
-                    # #10. Jensen's alpha of each security
-                    # jensens_alpha = (monthly_return - self.risk_free_rate) - (beta * (market_return - self.risk_free_rate))
-                
-                all_data[data_idx, 2] = np.mean(np.array(all_returns))
-                all_data[data_idx, 3] = np.mean(np.array(all_volatilities))
-                all_data[data_idx, 4] = np.mean(np.array(all_covariances))
-                all_data[data_idx, 5] = np.mean(np.array(all_betas))
-                all_data[data_idx, 6] = np.mean(np.array(all_alphas))
-                all_data[data_idx, 7] = np.mean(np.array(all_sharpe_ratios))
-        
-        model = mixture.BayesianGaussianMixture(n_components=4, covariance_type='full', random_state=0).fit(all_data)
-        self.Debug(str(model.means_))
-        self.model_training = False
-        return model
+    def train_model(self, start_year, num_years):
+            """Method to train model. Should only be called once at initialisation unless update needed.
+            :param int start_year: Start year of training data in YYYY format
+            :param int num_years: Number of years of training data to use
+            """
+            self.Debug(str(('Start training at {}'.format(self.Time))))
+            self.model_training = True
+            
+            # We want historic data grouped by month. Can do this by requesting data for one month at a time or slicing the whole history array using datetime indices. Here, we will request a month at a time.
+            years = list(map(str, range(start_year, start_year+num_years+1)))
+            months = list(map(str, range(1, 13)))
+            
+            spy_returns = []
+            spy_volatilities = []
+            n = num_years*12
+            # n by 62 array to store all data
+            all_data = np.empty((n, 8))
+            
+            # Use S&P as market data
+            for i in range(num_years):
+                for j in range(12):
+                    data_idx = i*12 + j
+                    
+                    start_date_str = years[i] + " " + months[j] + " 01"
+                    start_date = Time.ParseDate(start_date_str)
+
+                    end_date_str = years[i] + " " + months[j] + " 30"
+                    end_date = Time.ParseDate(end_date_str)
+
+                    market_history = self.History(self.spy, start_date, end_date, Resolution.Daily)
+
+                    #1. Monthly return of the market
+                    market_return = market_history.close.pct_change().dropna().mean() * 100
+                    all_data[data_idx, 0] = market_return
+                    spy_returns.append(market_return)
+                    #2. Monthly volatility of the market
+                    market_volatility = market_history.close.pct_change().dropna().std() * 100
+                    all_data[data_idx, 1] = market_volatility
+                    spy_volatilities.append(market_volatility)
+                    
+                    all_returns = []
+                    all_volatilities = []
+                    all_covariances = []
+                    all_betas = []
+                    all_alphas = []
+                    all_sharpe_ratios = []
+                    
+                    # For each security
+                    for security in self.historytickers[1:]: # omit first ticker (SPY)
+                        history = self.History(security, start_date, end_date, Resolution.Daily)
+
+                        #1. Monthly return of each security
+                        monthly_return = history.close.pct_change().dropna().mean() * 100
+                        all_returns.append(monthly_return)
+                        #2. Monthly volatility of each security
+                        monthly_volatility = history.close.pct_change().dropna().std() * 100
+                        all_volatilities.append(monthly_volatility)
+                        #3. Covariance of monthly returns of each security and the market
+                        covariance = history.close.pct_change().dropna().cov(market_history.close.pct_change().dropna())
+                        all_covariances.append(covariance)
+                        #4. Beta of each security
+                        beta = covariance / market_volatility
+                        all_betas.append(beta)
+                        #5. Alpha of each security
+                        alpha = monthly_return - (self.risk_free_rate + beta * (market_return - self.risk_free_rate))
+                        all_alphas.append(alpha)
+                        #6. Sharpe ratio of each security
+                        sharpe_ratio = (monthly_return - self.risk_free_rate) / monthly_volatility
+                        all_sharpe_ratios.append(sharpe_ratio)
+                        # #7. Treynor ratio of each security
+                        # treynor_ratio = (monthly_return - self.risk_free_rate) / beta
+                        # #8. Information ratio of each security
+                        # information_ratio = monthly_return / monthly_volatility
+                        # #9. Sortino ratio of each security
+                        # sortino_ratio = (monthly_return - self.risk_free_rate) / monthly_volatility
+                        # #10. Jensen's alpha of each security
+                        # jensens_alpha = (monthly_return - self.risk_free_rate) - (beta * (market_return - self.risk_free_rate))
+                    
+                    all_data[data_idx, 2] = np.mean(np.array(all_returns))
+                    all_data[data_idx, 3] = np.mean(np.array(all_volatilities))
+                    all_data[data_idx, 4] = np.mean(np.array(all_covariances))
+                    all_data[data_idx, 5] = np.mean(np.array(all_betas))
+                    all_data[data_idx, 6] = np.mean(np.array(all_alphas))
+                    all_data[data_idx, 7] = np.mean(np.array(all_sharpe_ratios))
+            
+            model = mixture.BayesianGaussianMixture(n_components=4, covariance_type='full', random_state=0).fit(all_data)
+            self.Debug(str(model.means_))
+            self.model_training = False
+            return model
     
     def predict_model(self):
         """Predict on one datapoint averaged from data from one month"""

@@ -22,8 +22,8 @@ def adjust(current_portfolio, market_condition, historical_data, risk_free_rate,
         # In high inflation situations, rebalance less; in high volatility situations tend to reduce size
         strong_buy = [1.2, 1.5, 1.2, 1.2]
         buy = [1, 1.2, 1, 1]
-        sell = [-0.1, 0.8, 0.3, 0.1]
-        strong_sell = [-0.5, 0.3, 0.5, 0.1]
+        sell = [-1.2, 0.8, 0.3, 0.1]
+        strong_sell = [-1.5, 0.3, 0.5, 0.1]
 
         # Calculate MACD for each asset
         prices = historical_data.loc[symbol]['close']
@@ -32,12 +32,12 @@ def adjust(current_portfolio, market_condition, historical_data, risk_free_rate,
         # If the sharpe ratio is above the threshold, and the MACD is positive, increase allocation to asset
         if sharpe_ratios[symbol] >= threshold_sharpe_ratios[symbol]:
             if macd > 0:
-                current_portfolio[symbol] = weight*strong_buy[market_condition - 1]
+                current_portfolio[symbol] = abs(weight)*strong_buy[market_condition - 1]
             else:
-                current_portfolio[symbol] = weight*buy[market_condition - 1]
+                current_portfolio[symbol] = abs(weight)*buy[market_condition - 1]
         else:
             if macd > 0:
-                current_portfolio[symbol] = weight*sell[market_condition - 1]
+                current_portfolio[symbol] = abs(weight)*sell[market_condition - 1]
             else:
                 current_portfolio[symbol] = abs(weight)*strong_sell[market_condition - 1]
 

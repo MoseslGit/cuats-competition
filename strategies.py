@@ -3,12 +3,12 @@ import numpy as np
 # Execute trading strategy for crisis market condition
 def crisis_strategy(historical_data, securities):
 
-    # Short equities, long bonds as we go risk off
+    # Short equities, small allocation to bonds and gold as we go risk off
     updated_portfolio = {}
 
     # Set initial weights for rebalancing
     updated_portfolio["SPY"] = -0.2
-    updated_portfolio["UBT"] = 0.2
+    updated_portfolio["XAGUSD"] = 0.2
     updated_portfolio["UST"] = 0.2
 
 

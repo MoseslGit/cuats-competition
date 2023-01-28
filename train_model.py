@@ -1,26 +1,10 @@
 import pandas as pd
-import torch
-import torch.nn.functional as F
 from sklearn.model_selection import train_test_split
 from sklearn import mixture
 import matplotlib.pyplot as plt
 import matplotlib as mpl
 import numpy as np
 from scipy import linalg
-# from AlgorithmImports import *
-# from sklearn.externals import joblib
-
-# def preprocess_data(data_path):
-#   # import data from CSV file
-#   df = pd.read_csv(data_path)
-
-#   # drop null values
-#   df.dropna(inplace=True)
-
-#   # split data into training and test sets
-#   X_train, X_test, y_train, y_test = train_test_split(df.drop('target', axis=1), df['target'], test_size=0.2)
-
-#   return X_train, X_test, y_train, y_test
 
 def train(data):
   # create the Gaussian mixture model
@@ -28,25 +12,6 @@ def train(data):
 
   # We would want to look at model.predict(data), model.means_, model.covariances_
   return model
-
-  
-def identify_market_condition(data):
-    # Placeholder function to identify market condition and calculate probabilities
-    probabilities = None
-    return probabilities
-
-# def main():
-#     # preprocess data
-#     X_train, X_test, y_train, y_test = preprocess_data('data.csv')
-
-#     # train model
-#     model = train(X_train, y_train)
-
-#     # identify market condition
-#     probabilities = identify_market_condition(X_test)
-
-#     # save model
-#     joblib.dump(model, 'model.joblib')
 
 def plot_results(X, Y, means, covariances, index, title):
     splot = plt.subplot(5, 1, 1 + index)
@@ -80,3 +45,28 @@ if __name__ == '__main__':
   Ys = np.random.randint(0, 100, (5, 2))
   test_model = train(Xs)
   print(test_model.predict(Ys))
+  
+  # def preprocess_data(data_path):
+#   # import data from CSV file
+#   df = pd.read_csv(data_path)
+
+#   # drop null values
+#   df.dropna(inplace=True)
+
+#   # split data into training and test sets
+#   X_train, X_test, y_train, y_test = train_test_split(df.drop('target', axis=1), df['target'], test_size=0.2)
+
+#   return X_train, X_test, y_train, y_test
+
+# def main():
+#     # preprocess data
+#     X_train, X_test, y_train, y_test = preprocess_data('data.csv')
+
+#     # train model
+#     model = train(X_train, y_train)
+
+#     # identify market condition
+#     probabilities = identify_market_condition(X_test)
+
+#     # save model
+#     joblib.dump(model, 'model.joblib')

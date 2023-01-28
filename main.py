@@ -1,8 +1,7 @@
 from AlgorithmImports import *
-
 import numpy as np
 from datetime import datetime
-import train_model
+from train_model import *
 import strategies
 import rebalance
 
@@ -138,20 +137,10 @@ class TradingStrategy(QCAlgorithm):
         years = map(str, range(startyear, startyear+years+1))
         months = map(str, range(1, 13))
         
-        # # Calculate input data for model
-        # # For market as whole
-        # #1. Monthly return of the market
-        # market_history = self.History(self.spy, 30, Resolution.Daily)
-        # market_return = market_history.Close.pct_change().dropna().mean()
-        # market_return = market_return * 100
-        # #2. Monthly volatility of the market
-        # market_volatility = market_history.Close.pct_change().dropna().std()
-        # market_volatility = market_volatility * 100
-        
         # # For each security
         # for security in self.securities:
         #     history = self.History(security.Symbol, 30, Resolution.Daily)
-        #     # Monthly return of each security
+        #     #1. Monthly return of each security
         #     monthly_return = history.Close.pct_change().dropna().mean()
         #     monthly_return = monthly_return * 100
         #     #2. Monthly volatility of each security
@@ -182,28 +171,39 @@ class TradingStrategy(QCAlgorithm):
         
         returns = []
         volatilities = []
+        momentums = []
         # Use S&P as market data
         for year in years:
             for month in months:
                 start_date_str = year + " " + month + " 01"
-                start_date = Time.ParseDate(date_str)
+                start_date = Time.ParseDate(start_date_str)
                 end_date_str = year + " " + month + " 30"
-                end_date = Time.ParseDate(date_str)
-                market_history = self.History(self.spy, start_date, end_date, Resolution.Daily)
+                end_date = Time.ParseDate(end_date_str)
+                market_history = qb.History(spy.Symbol, start_date, end_date, Resolution.Daily)
                 #1. Monthly return of the market
-                market_return = market_history.Close.pct_change().dropna().mean()
+                market_return = market_history.close.pct_change().dropna().mean()
                 market_return = market_return * 100
                 returns.append(market_return)
                 #2. Monthly volatility of the market
-                market_volatility = market_history.Close.pct_change().dropna().std()
+                market_volatility = market_history.close.pct_change().dropna().std()
                 market_volatility = market_volatility * 100
                 volatilities.append(market_volatility)
         
+                # Also calculate some indicator variables
+                self.RegisterIndicator("SPY", self.spy, start_date, end_date, Resolution.Daily)
         data = tuple(zip(returns, volatilities))
         
-        model = train_model.train(data)
+        model = train(data)
         self.model_is_training = False
     
     def predict_model(self):
         """Predict on one datapoint averaged from data from one month"""
         predict_history = self.History(timedelta(days=30), Resolution.Daily)
+        test_history = qb.History(spy.Symbol, timedelta(days=30), Resolution.Daily)
+        market_return = test_history.close.pct_change().dropna().mean()
+        market_return = market_return * 100
+        test_data[0,0] = market_return
+        market_volatility = test_history.close.pct_change().dropna().std()
+        market_volatility = market_volatility * 100
+        test_data[0,1] = market_volatility
+        print(model.predict(test_data))

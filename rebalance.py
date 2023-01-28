@@ -30,17 +30,18 @@ def adjust(current_portfolio, market_condition, historical_data, risk_free_rate,
         macd = calculate_macd(prices, thresholds['short_window'], thresholds['long_window'])
 
         # If the sharpe ratio is above the threshold, and the MACD is positive, increase allocation to asset
-        if sharpe_ratios[symbol] >= threshold_sharpe_ratios[symbol]:
-            if macd > 0:
+        if macd > 0:
+            if sharpe_ratios[symbol] >= threshold_sharpe_ratios[symbol]:
                 current_portfolio[symbol] = abs(weight)*strong_buy[market_condition - 1]
             else:
                 current_portfolio[symbol] = abs(weight)*buy[market_condition - 1]
+        # If the sharpe ratio is below the threshold, and the MACD is negative, decrease allocation to asset
         else:
-            if macd > 0:
-                current_portfolio[symbol] = abs(weight)*sell[market_condition - 1]
-            else:
+            if sharpe_ratios[symbol] <= threshold_sharpe_ratios[symbol]:
                 current_portfolio[symbol] = abs(weight)*strong_sell[market_condition - 1]
-        
+            else:
+                current_portfolio[symbol] = abs(weight)*sell[market_condition - 1]
+                
         # If the portfolio is doing well, scale up
         if portfolio_returns > 0:
             current_portfolio[symbol] = abs(weight)*1.5

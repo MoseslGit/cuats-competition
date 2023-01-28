@@ -11,7 +11,7 @@ class TradingStrategy(QCAlgorithm):
 
         self.SetBenchmark("SPY")
         
-        self.SetStartDate(2020, 1, 1)
+        self.SetStartDate(2013, 1, 1)
         self.SetEndDate(2020, 12, 31)
 
         self.SetCash(100000)
@@ -36,6 +36,7 @@ class TradingStrategy(QCAlgorithm):
         ubt = self.AddEquity("UBT", Resolution.Daily).Symbol
         ust = self.AddEquity("UST", Resolution.Daily).Symbol
         self.ticker = ["SPY", "TQQQ", "XAGUSD", "UBT", "UST"]
+
         # list of securities to be used for history function
         self.historytickers = [spy, tqqq, xagusd, ubt, ust]
         self.spy = self.historytickers[0]
@@ -51,15 +52,21 @@ class TradingStrategy(QCAlgorithm):
 
         self.Schedule.On(
             self.DateRules.WeekStart("SPY"),
-            self.TimeRules.AfterMarketOpen("SPY", 150),
+            self.TimeRules.AfterMarketOpen("SPY"),
             self.Rebalance)
-
+        
         self.SetWarmUp(100)
 
+        # Set Leverage, and lower cash buffer to reduce unfilled orders
+        self.SetSecurityInitializer(self.CustomSecurityInitializer)
+        self.Settings.FreePortfolioValuePercentage = 0.05
         # Model setup
         self.model_training = False
         self.model = self.train_model(1998, 23)
         
+    # Set leverage to 5
+    def CustomSecurityInitializer(self, security):
+        security.SetLeverage(5)
 
     def Rebalance(self):
         self.portfolio_returns = float(self.Portfolio.TotalPortfolioValue - self.previous_value)

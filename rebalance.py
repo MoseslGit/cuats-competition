@@ -76,6 +76,11 @@ def calculate_factors(historical_data, portfolio):
             if symbol != compare_symbol:
                 compare_prices = historical_data.loc[compare_symbol]['close'].resample('d').last()
                 compare_returns = np.diff(compare_prices) / compare_prices[:-1]
+                #make sure the two assets have the same number of returns
+                if len(returns) > len(compare_returns):
+                    returns = returns[:len(compare_returns)]
+                elif len(compare_returns) > len(returns):
+                    compare_returns = compare_returns[:len(returns)]
                 correlation = np.corrcoef(returns, compare_returns)[0][1]
                 correlations.append(correlation)
         

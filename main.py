@@ -17,6 +17,7 @@ class TradingStrategy(QCAlgorithm):
         self.SetCash(100000)
         self.first_iteration = True
         self.market_condition = 1
+        self.previous_value = 100000
 
         # Set estimated risk-free rate, as well as rebalancing thresholds for calculations
         self.risk_free_rate = 0.05
@@ -61,11 +62,13 @@ class TradingStrategy(QCAlgorithm):
         
 
     def Rebalance(self):
+        self.portfolio_returns = float(self.Portfolio.TotalPortfolioValue - self.previous_value)
+        self.previous_value = float(self.Portfolio.TotalPortfolioValue)
         # Rebalance every week depending on portfolio performance
         historical_data = self.History(self.historytickers, 14, Resolution.Daily)
 
         # Call rebalancing function from rebalance.py
-        rebalanced_portfolio = rebalance.adjust(self.weightBySymbol, self.market_condition, historical_data, self.risk_free_rate, self.thresholds)
+        rebalanced_portfolio = rebalance.adjust(self.weightBySymbol, self.market_condition, historical_data, self.risk_free_rate, self.thresholds, self.portfolio_returns)
         
         # Liquidate any symbols that are no longer in the portfolio
         for symbol in self.Portfolio.Keys:
@@ -76,7 +79,6 @@ class TradingStrategy(QCAlgorithm):
         for symbol in rebalanced_portfolio:
             self.SetHoldings(symbol, rebalanced_portfolio[symbol])
         self.weightBySymbol = rebalanced_portfolio
-
     def Update(self):
         # Update portfolio weights every month depending on market conditions
         self.market_condition = self.predict_model()

@@ -126,29 +126,78 @@ class TradingStrategy(QCAlgorithm):
         years = map(str, range(startyear, startyear+years+1))
         months = map(str, range(1, 13))
         
-        returns = []
-        volatilities = []
-        momentums = []
+        spy_returns = []
+        spy_volatilities = []
+        n = years*12
+        # n by 62 array to store all data
+        all_data = np.empty((n, 8))
+        
         # Use S&P as market data
-        for year in years:
-            for month in months:
-                start_date_str = year + " " + month + " 01"
+        for i in range(len(years)):
+            for j in range(len(months)):
+                data_idx = i*12 + j
+                
+                start_date_str = years[i] + " " + months[j] + " 01"
                 start_date = Time.ParseDate(start_date_str)
-                end_date_str = year + " " + month + " 30"
+                end_date_str = years[i] + " " + months[j] + " 30"
                 end_date = Time.ParseDate(end_date_str)
                 market_history = self.History(self.spy, start_date, end_date, Resolution.Daily)
                 #1. Monthly return of the market
-                market_return = market_history.close.pct_change().dropna().mean()
-                market_return = market_return * 100
-                returns.append(market_return)
+                market_return = market_history.close.pct_change().dropna().mean() * 100
+                all_data[data_idx, 0] = market_return
+                spy_returns.append(market_return)
                 #2. Monthly volatility of the market
-                market_volatility = market_history.close.pct_change().dropna().std()
-                market_volatility = market_volatility * 100
-                volatilities.append(market_volatility)
+                market_volatility = market_history.close.pct_change().dropna().std() * 100
+                all_data[data_idx, 1] = market_volatility
+                spy_volatilities.append(market_volatility)
+                
+                all_returns = []
+                all_volatilities = []
+                all_covariances = []
+                all_betas = []
+                all_alphas = []
+                all_sharpe_ratios = []
+                
+                # For each security
+                for i in range(1, len(self.historytickers)): # omit first ticker (SPY)
+                    var_idx = (i-1)*5
+                    security = self.historytickers[i]
+                    history = self.History(security, 30, Resolution.Daily)
+                    #1. Monthly return of each security
+                    monthly_return = history.close.pct_change().dropna().mean() * 100
+                    all_returns += monthly_return
+                    #2. Monthly volatility of each security
+                    monthly_volatility = history.close.pct_change().dropna().std() * 100
+                    all_volatilities += monthly_volatility
+                    #3. Covariance of monthly returns of each security and the market
+                    covariance = history.close.pct_change().dropna().cov(market_history.close.pct_change().dropna())
+                    all_covariances += covariance
+                    #4. Beta of each security
+                    beta = covariance / market_volatility
+                    all_betas += beta
+                    #5. Alpha of each security
+                    alpha = monthly_return - (self.risk_free_rate + beta * (market_return - self.risk_free_rate))
+                    all_alphas += alpha
+                    #6. Sharpe ratio of each security
+                    sharpe_ratio = (monthly_return - self.risk_free_rate) / monthly_volatility
+                    all_sharpe_ratios += sharpe_ratio
+                    # #7. Treynor ratio of each security
+                    # treynor_ratio = (monthly_return - self.risk_free_rate) / beta
+                    # #8. Information ratio of each security
+                    # information_ratio = monthly_return / monthly_volatility
+                    # #9. Sortino ratio of each security
+                    # sortino_ratio = (monthly_return - self.risk_free_rate) / monthly_volatility
+                    # #10. Jensen's alpha of each security
+                    # jensens_alpha = (monthly_return - self.risk_free_rate) - (beta * (market_return - self.risk_free_rate))
+                
+                all_data[data_idx, 2] = np.mean(np.array(all_returns))
+                all_data[data_idx, 3] = np.mean(np.array(all_volatilities))
+                all_data[data_idx, 4] = np.mean(np.array(all_covariances))
+                all_data[data_idx, 5] = np.mean(np.array(all_betas))
+                all_data[data_idx, 6] = np.mean(np.array(all_alphas))
+                all_data[data_idx, 7] = np.mean(np.array(all_sharpe_ratios))
         
-        data = tuple(zip(returns, volatilities))
-        
-        model = mixture.BayesianGaussianMixture(n_components=4, covariance_type='full', random_state=0).fit(data)
+        model = mixture.BayesianGaussianMixture(n_components=4, covariance_type='full', random_state=0).fit(all_data)
         self.Debug(str(model.means_))
         self.model_training = False
         return model
@@ -165,35 +214,3 @@ class TradingStrategy(QCAlgorithm):
         test_data[0,1] = market_volatility
         self.Debug(str(self.model.predict(test_data)))
         return self.model.predict(test_data)[0]
-
-# # For each security
-# for security in self.securities:
-#     history = self.History(security.Symbol, 30, Resolution.Daily)
-#     #1. Monthly return of each security
-#     monthly_return = history.Close.pct_change().dropna().mean()
-#     monthly_return = monthly_return * 100
-#     #2. Monthly volatility of each security
-#     monthly_volatility = history.Close.pct_change().dropna().std()
-#     monthly_volatility = monthly_volatility * 100
-#     #3. Covariance of monthly returns of each security and the market
-#     covariance = history.Close.pct_change().dropna().cov(market_history.Close.pct_change().dropna())
-#     #4. Beta of each security
-#     beta = covariance / market_volatility
-#     #5. Alpha of each security
-#     alpha = monthly_return - (self.risk_free_rate + beta * (market_return - self.risk_free_rate))
-#     #6. Sharpe ratio of each security
-#     sharpe_ratio = (monthly_return - self.risk_free_rate) / monthly_volatility
-#     #9. Treynor ratio of each security
-#     treynor_ratio = (monthly_return - self.risk_free_rate) / beta
-#     #10. Information ratio of each security
-#     information_ratio = monthly_return / monthly_volatility
-#     #11. Sortino ratio of each security
-#     sortino_ratio = (monthly_return - self.risk_free_rate) / monthly_volatility
-#     #12. Jensen's alpha of each security
-#     jensens_alpha = (monthly_return - self.risk_free_rate) - (beta * (market_return - self.risk_free_rate))
-#     #13. Market capitalisation of each security
-#     market_cap = security.MarketCap
-#     #14. Price to earnings ratio of each security
-#     p_e_ratio = security.PriceToEarningsRatio
-#     #15. Price to book ratio of each security
-#     p_b_ratio = security.PriceToBookRatio

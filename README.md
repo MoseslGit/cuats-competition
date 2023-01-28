@@ -7,4 +7,4 @@ Exeuction Instructions:
 
 For detailed breakdowns of the code, refer to comments around functions.
 
-Note: still working on model stability but should be able to deliver a decent result
+Note: model still requires more data/parameters - maybe we train outside of QuantConnect in the future.

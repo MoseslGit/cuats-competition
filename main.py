@@ -1,9 +1,9 @@
 from AlgorithmImports import *
 import numpy as np
-from datetime import datetime
-from train_model import *
 import strategies
 import rebalance
+from sklearn import mixture
+import pandas as pd
 
 
 class TradingStrategy(QCAlgorithm):
@@ -11,12 +11,14 @@ class TradingStrategy(QCAlgorithm):
 
         self.SetBenchmark("SPY")
         
-        start_date = datetime(2020, 1, 1)
-        end_date = datetime(2020, 12, 31)
+        self.SetStartDate(2020, 1, 1)
+        self.SetEndDate(2020, 12, 31)
 
         self.SetCash(100000)
-        
-        # Estimated risk-free rate for calculations
+        self.first_iteration = True
+        self.market_condition = 1
+
+        # Set estimated risk-free rate, as well as rebalancing thresholds for calculations
         self.risk_free_rate = 0.05
         self.thresholds = {
             'risk_factor': 2.0,
@@ -25,149 +27,104 @@ class TradingStrategy(QCAlgorithm):
             'short_window': 7,
             'long_window': 14
         }
-
-        # #Import trained market identification model
-        # self.model = train_model.load_model()
         
-        # Train model once on initialisation
-        self.Train(self.train_model)
-
-        #Manual universe selection
-        #tickers = ['TSLA', 'AAPL']
-        #symbols = []
-        # loop through the tickers list and create symbols for the universe
-        #for i in range(len(tickers)):
-        #    symbols.append(Symbol.Create(tickers[i], SecurityType.Equity, Market.USA))
-        #    allocationPlot.AddSeries(Series(tickers[i], SeriesType.Line, ''))
-        #self.AddChart(allocationPlot)
-        #self.SetUniverseSelection(ManualUniverseSelectionModel(symbols))
-
-        #ETF universe selection
-        #SPY ETF
-        self.spy = self.AddEquity("SPY").Symbol
-        self.AddUniverse(self.Universe.ETF(self.spy, self.UniverseSettings, self.ETFConstituentsFilter))
-        #Gold ETF
-        self.gld = self.AddEquity("GLD").Symbol
-        self.AddUniverse(self.Universe.ETF(self.gld, self.UniverseSettings, self.ETFConstituentsFilter))
-        #QQQ Tech ETF
-        self.qqq = self.AddEquity("QQQ").Symbol
-        self.AddUniverse(self.Universe.ETF(self.qqq, self.UniverseSettings, self.ETFConstituentsFilter))
-        #Bond ETF
-        self.agg = self.AddEquity("AGG").Symbol
-        self.AddUniverse(self.Universe.ETF(self.agg, self.UniverseSettings, self.ETFConstituentsFilter))
-
-        self.securities = []
-        self.weightBySymbol = {}
+        # 5 etfs selected as proof of concept, SPY as the market, TQQQ as tech, XAGUSD as gold, UBT as bonds, UST as treasuries
+        spy = self.AddEquity("SPY", Resolution.Daily).Symbol
+        tqqq = self.AddEquity("TQQQ", Resolution.Daily).Symbol
+        xagusd = self.AddCfd("XAGUSD", Resolution.Daily).Symbol
+        ubt = self.AddEquity("UBT", Resolution.Daily).Symbol
+        ust = self.AddEquity("UST", Resolution.Daily).Symbol
+        self.ticker = ["SPY", "TQQQ", "XAGUSD", "UBT", "UST"]
+        # list of securities to be used for history function
+        self.historytickers = [spy, tqqq, xagusd, ubt, ust]
+        self.spy = self.historytickers[0]
         
+        # Set initial equal weights
+        self.weightBySymbol = {"SPY" : 0.2, "TQQQ" : 0.2, "XAGUSD" : 0.2, "UBT" : 0.2, "UST" : 0.2}
+
+        # schedule updating and rebalancing of portfolio weights
         self.Schedule.On(
-            self.DateRules.EveryDay(self.spy),
-            self.TimeRules.AfterMarketOpen(self.spy, 1),
+            self.DateRules.MonthStart("SPY"),
+            self.TimeRules.AfterMarketOpen("SPY"),
+            self.Update)
+
+        self.Schedule.On(
+            self.DateRules.WeekStart("SPY"),
+            self.TimeRules.AfterMarketOpen("SPY", 150),
             self.Rebalance)
 
         self.SetWarmUp(100)
-        self.Schedule.On(self.DateRules.EveryDay(self.Symbols), self.TimeRules.AfterMarketOpen(self.Symbols), self.rebalance_portfolio)
+
+        # Model setup
+        self.model_training = False
+        self.model = self.train_model(1998, 23)
         
-        # Train model at the end of every month at midnight so that it's ready exactly at month start
-        self.Train(self.DataRules.MonthEnd(0), self.TimeRules.Midnight, self.predict_model)
+
+    def Rebalance(self):
+        # Rebalance every week depending on portfolio performance
+        historical_data = self.History(self.historytickers, 14, Resolution.Daily)
+
+        # Call rebalancing function from rebalance.py
+        rebalanced_portfolio = rebalance.adjust(self.weightBySymbol, self.market_condition, historical_data, self.risk_free_rate, self.thresholds)
         
-
-    def OnSecuritiesChanged(self, changes: SecurityChanges) -> None:
-        for security in changes.AddedSecurities:
-            security.SetLeverage(10)
-            history = self.History(security.Symbol, 7, Resolution.Daily)
-            self.Log(f'{security.Symbol.Value} added to the universe')
-            
-
-        for security in changes.RemovedSecurities:
-            self.Log(f'{security.Symbol.Value} removed from to the universe')
-            if security in self.securities:
-                self.securities.remove(security)
-
-        self.securities.extend(changes.AddedSecurities)
-
-
-    def ETFConstituentsFilter(self, constituents):
-        # Get the 10 securities with the largest weight in the index
-        selected = sorted([c for c in constituents if c.Weight],
-            key=lambda c: c.Weight, reverse=True)[:10]
-        self.weightBySymbol = {c.Symbol: c.Weight for c in selected}
+        # Liquidate any symbols that are no longer in the portfolio
+        for symbol in self.Portfolio.Keys:
+            if symbol not in rebalanced_portfolio:
+                self.Liquidate(symbol)
         
-        return list(self.weightBySymbol.keys())
+        # Set holdings for rebalanced portfolio
+        for symbol in rebalanced_portfolio:
+            self.SetHoldings(symbol, rebalanced_portfolio[symbol])
+        self.weightBySymbol = rebalanced_portfolio
 
+    def Update(self):
+        # Update portfolio weights every month depending on market conditions
+        self.market_condition = self.predict_model()
+        historical_data = self.History(self.historytickers, 30, Resolution.Daily)
+
+        # Call strategy from strategies.py based on market condition
+        if self.market_condition == 1:
+            updated_portfolio = strategies.crisis_strategy(historical_data, self.ticker)
+        elif self.market_condition == 2:
+            updated_portfolio = strategies.steady_state_strategy(historical_data, self.ticker)
+        elif self.market_condition == 3:
+            updated_portfolio = strategies.inflation_strategy(historical_data, self.ticker)
+        else:
+            updated_portfolio = strategies.woi_strategy(historical_data, self.ticker)
+
+        # Liquidate any symbols that are no longer in the portfolio
+        for symbol in self.Portfolio.Keys:
+            if symbol not in updated_portfolio:
+                self.Liquidate(symbol)
+
+        # Set holdings for updated portfolio
+        for symbol in updated_portfolio:
+            self.SetHoldings(symbol, updated_portfolio[symbol])
+        self.weightBySymbol = updated_portfolio
+        
 
     def OnData(self, data):
 
-        if self.IsWarmingUp or self.model_is_training():
+        if self.IsWarmingUp or self.model_training:
             return
 
-        # Every month check market condition and update portfolio
-        if self.Time.day % 30 == 0:
-
-            market_condition = strategies.identify_market(self.model, data)
-            # Update portfolio
-            updated_portfolio = strategies.update(self.Portfolio, data, market_condition)
-            for symbol in self.Portfolio.Keys:
-                if symbol not in rebalanced_portfolio:
-                    self.Liquidate(symbol)
-                self.SetHoldings(symbol, updated_portfolio[symbol])
-
-        #Else every 2 weeks rebalance portfolio
-        elif self.Time.day % 14 == 0:
-            for symbol in self.Portfolio.Keys:
-                Close = data[symbol].Close
-                currentweight = (self.Portfolio[symbol].Quantity * Close) /self.Portfolio.TotalPortfolioValue
-            current_portfolio = {symbol: currentweight for symbol in self.Portfolio.Keys}
-            symbols = [symbol for symbol in self.Portfolio.Keys]
-            historical_data = self.History(symbols, 30, Resolution.Daily)
-            rebalanced_portfolio = rebalance.adjust(current_portfolio, historical_data, self.risk_free_rate, self.thresholds)
-            for symbol in self.Portfolio.Keys:
-                if symbol not in rebalanced_portfolio:
-                    self.Liquidate(symbol)
-                self.SetHoldings(symbol, rebalanced_portfolio[symbol])
+        # On first iteration, set initial portfolio weights as a baseline
+        if self.first_iteration:
+            for symbol in self.weightBySymbol:
+                self.SetHoldings(symbol, self.weightBySymbol[symbol])
+            self.first_iteration = False
 
     def train_model(self, startyear, years):
         """Method to train model. Should only be called once at initialisation unless update needed.
         :param int startyear: Start year of training data in YYYY format
         :param int years: Number of years of training data to use
         """
-        self.Log('Start training at {}'.format(self.Time))
-        self.model_is_training = True
+        self.Debug(str(('Start training at {}'.format(self.Time))))
+        self.model_training = True
         
         # We want historic data grouped by month. Can do this by requesting data for one month at a time or slicing the whole history array using datetime indices. Here, we will request a month at a time.
         years = map(str, range(startyear, startyear+years+1))
         months = map(str, range(1, 13))
-        
-        # # For each security
-        # for security in self.securities:
-        #     history = self.History(security.Symbol, 30, Resolution.Daily)
-        #     #1. Monthly return of each security
-        #     monthly_return = history.Close.pct_change().dropna().mean()
-        #     monthly_return = monthly_return * 100
-        #     #2. Monthly volatility of each security
-        #     monthly_volatility = history.Close.pct_change().dropna().std()
-        #     monthly_volatility = monthly_volatility * 100
-        #     #3. Covariance of monthly returns of each security and the market
-        #     covariance = history.Close.pct_change().dropna().cov(market_history.Close.pct_change().dropna())
-        #     #4. Beta of each security
-        #     beta = covariance / market_volatility
-        #     #5. Alpha of each security
-        #     alpha = monthly_return - (self.risk_free_rate + beta * (market_return - self.risk_free_rate))
-        #     #6. Sharpe ratio of each security
-        #     sharpe_ratio = (monthly_return - self.risk_free_rate) / monthly_volatility
-        #     #9. Treynor ratio of each security
-        #     treynor_ratio = (monthly_return - self.risk_free_rate) / beta
-        #     #10. Information ratio of each security
-        #     information_ratio = monthly_return / monthly_volatility
-        #     #11. Sortino ratio of each security
-        #     sortino_ratio = (monthly_return - self.risk_free_rate) / monthly_volatility
-        #     #12. Jensen's alpha of each security
-        #     jensens_alpha = (monthly_return - self.risk_free_rate) - (beta * (market_return - self.risk_free_rate))
-        #     #13. Market capitalisation of each security
-        #     market_cap = security.MarketCap
-        #     #14. Price to earnings ratio of each security
-        #     p_e_ratio = security.PriceToEarningsRatio
-        #     #15. Price to book ratio of each security
-        #     p_b_ratio = security.PriceToBookRatio
         
         returns = []
         volatilities = []
@@ -179,7 +136,7 @@ class TradingStrategy(QCAlgorithm):
                 start_date = Time.ParseDate(start_date_str)
                 end_date_str = year + " " + month + " 30"
                 end_date = Time.ParseDate(end_date_str)
-                market_history = qb.History(spy.Symbol, start_date, end_date, Resolution.Daily)
+                market_history = self.History(self.spy, start_date, end_date, Resolution.Daily)
                 #1. Monthly return of the market
                 market_return = market_history.close.pct_change().dropna().mean()
                 market_return = market_return * 100
@@ -189,21 +146,54 @@ class TradingStrategy(QCAlgorithm):
                 market_volatility = market_volatility * 100
                 volatilities.append(market_volatility)
         
-                # Also calculate some indicator variables
-                self.RegisterIndicator("SPY", self.spy, start_date, end_date, Resolution.Daily)
         data = tuple(zip(returns, volatilities))
         
-        model = train(data)
-        self.model_is_training = False
+        model = mixture.BayesianGaussianMixture(n_components=4, covariance_type='full', random_state=0).fit(data)
+        self.Debug(str(model.means_))
+        self.model_training = False
+        return model
     
     def predict_model(self):
         """Predict on one datapoint averaged from data from one month"""
-        predict_history = self.History(timedelta(days=30), Resolution.Daily)
-        test_history = qb.History(spy.Symbol, timedelta(days=30), Resolution.Daily)
+        test_data = np.empty((1,2))
+        test_history = self.History(self.spy, timedelta(days=30), Resolution.Daily)
         market_return = test_history.close.pct_change().dropna().mean()
         market_return = market_return * 100
         test_data[0,0] = market_return
         market_volatility = test_history.close.pct_change().dropna().std()
         market_volatility = market_volatility * 100
         test_data[0,1] = market_volatility
-        print(model.predict(test_data))
+        self.Debug(str(self.model.predict(test_data)))
+        return self.model.predict(test_data)[0]
+
+# # For each security
+# for security in self.securities:
+#     history = self.History(security.Symbol, 30, Resolution.Daily)
+#     #1. Monthly return of each security
+#     monthly_return = history.Close.pct_change().dropna().mean()
+#     monthly_return = monthly_return * 100
+#     #2. Monthly volatility of each security
+#     monthly_volatility = history.Close.pct_change().dropna().std()
+#     monthly_volatility = monthly_volatility * 100
+#     #3. Covariance of monthly returns of each security and the market
+#     covariance = history.Close.pct_change().dropna().cov(market_history.Close.pct_change().dropna())
+#     #4. Beta of each security
+#     beta = covariance / market_volatility
+#     #5. Alpha of each security
+#     alpha = monthly_return - (self.risk_free_rate + beta * (market_return - self.risk_free_rate))
+#     #6. Sharpe ratio of each security
+#     sharpe_ratio = (monthly_return - self.risk_free_rate) / monthly_volatility
+#     #9. Treynor ratio of each security
+#     treynor_ratio = (monthly_return - self.risk_free_rate) / beta
+#     #10. Information ratio of each security
+#     information_ratio = monthly_return / monthly_volatility
+#     #11. Sortino ratio of each security
+#     sortino_ratio = (monthly_return - self.risk_free_rate) / monthly_volatility
+#     #12. Jensen's alpha of each security
+#     jensens_alpha = (monthly_return - self.risk_free_rate) - (beta * (market_return - self.risk_free_rate))
+#     #13. Market capitalisation of each security
+#     market_cap = security.MarketCap
+#     #14. Price to earnings ratio of each security
+#     p_e_ratio = security.PriceToEarningsRatio
+#     #15. Price to book ratio of each security
+#     p_b_ratio = security.PriceToBookRatio

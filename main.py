@@ -1,12 +1,9 @@
 from AlgorithmImports import *
-
 import numpy as np
-from datetime import datetime
-
-#import ML model, market condition strategies, and rebalancing functions
-#import train_model
 import strategies
 import rebalance
+from sklearn import mixture
+import pandas as pd
 
 
 class TradingStrategy(QCAlgorithm):
@@ -31,7 +28,6 @@ class TradingStrategy(QCAlgorithm):
             'long_window': 14
         }
         
-
         # 5 etfs selected as proof of concept, SPY as the market, TQQQ as tech, XAGUSD as gold, UBT as bonds, UST as treasuries
         spy = self.AddEquity("SPY", Resolution.Daily).Symbol
         tqqq = self.AddEquity("TQQQ", Resolution.Daily).Symbol
@@ -39,7 +35,9 @@ class TradingStrategy(QCAlgorithm):
         ubt = self.AddEquity("UBT", Resolution.Daily).Symbol
         ust = self.AddEquity("UST", Resolution.Daily).Symbol
         self.ticker = ["SPY", "TQQQ", "XAGUSD", "UBT", "UST"]
+        # list of securities to be used for history function
         self.historytickers = [spy, tqqq, xagusd, ubt, ust]
+        self.spy = self.historytickers[0]
         
         # Set initial equal weights
         self.weightBySymbol = {"SPY" : 0.2, "TQQQ" : 0.2, "XAGUSD" : 0.2, "UBT" : 0.2, "UST" : 0.2}
@@ -57,6 +55,10 @@ class TradingStrategy(QCAlgorithm):
 
         self.SetWarmUp(100)
 
+        # Model setup
+        self.model_training = False
+        self.model = self.train_model(1998, 23)
+        
 
     def Rebalance(self):
         # Rebalance every week depending on portfolio performance
@@ -77,7 +79,7 @@ class TradingStrategy(QCAlgorithm):
 
     def Update(self):
         # Update portfolio weights every month depending on market conditions
-        self.market_condition = 4
+        self.market_condition = self.predict_model()
         historical_data = self.History(self.historytickers, 30, Resolution.Daily)
 
         # Call strategy from strategies.py based on market condition
@@ -103,7 +105,7 @@ class TradingStrategy(QCAlgorithm):
 
     def OnData(self, data):
 
-        if self.IsWarmingUp:
+        if self.IsWarmingUp or self.model_training:
             return
 
         # On first iteration, set initial portfolio weights as a baseline
@@ -112,4 +114,86 @@ class TradingStrategy(QCAlgorithm):
                 self.SetHoldings(symbol, self.weightBySymbol[symbol])
             self.first_iteration = False
 
-        return
+    def train_model(self, startyear, years):
+        """Method to train model. Should only be called once at initialisation unless update needed.
+        :param int startyear: Start year of training data in YYYY format
+        :param int years: Number of years of training data to use
+        """
+        self.Debug(str(('Start training at {}'.format(self.Time))))
+        self.model_training = True
+        
+        # We want historic data grouped by month. Can do this by requesting data for one month at a time or slicing the whole history array using datetime indices. Here, we will request a month at a time.
+        years = map(str, range(startyear, startyear+years+1))
+        months = map(str, range(1, 13))
+        
+        returns = []
+        volatilities = []
+        momentums = []
+        # Use S&P as market data
+        for year in years:
+            for month in months:
+                start_date_str = year + " " + month + " 01"
+                start_date = Time.ParseDate(start_date_str)
+                end_date_str = year + " " + month + " 30"
+                end_date = Time.ParseDate(end_date_str)
+                market_history = self.History(self.spy, start_date, end_date, Resolution.Daily)
+                #1. Monthly return of the market
+                market_return = market_history.close.pct_change().dropna().mean()
+                market_return = market_return * 100
+                returns.append(market_return)
+                #2. Monthly volatility of the market
+                market_volatility = market_history.close.pct_change().dropna().std()
+                market_volatility = market_volatility * 100
+                volatilities.append(market_volatility)
+        
+        data = tuple(zip(returns, volatilities))
+        
+        model = mixture.BayesianGaussianMixture(n_components=4, covariance_type='full', random_state=0).fit(data)
+        self.Debug(str(model.means_))
+        self.model_training = False
+        return model
+    
+    def predict_model(self):
+        """Predict on one datapoint averaged from data from one month"""
+        test_data = np.empty((1,2))
+        test_history = self.History(self.spy, timedelta(days=30), Resolution.Daily)
+        market_return = test_history.close.pct_change().dropna().mean()
+        market_return = market_return * 100
+        test_data[0,0] = market_return
+        market_volatility = test_history.close.pct_change().dropna().std()
+        market_volatility = market_volatility * 100
+        test_data[0,1] = market_volatility
+        self.Debug(str(self.model.predict(test_data)))
+        return self.model.predict(test_data)[0]
+
+# # For each security
+# for security in self.securities:
+#     history = self.History(security.Symbol, 30, Resolution.Daily)
+#     #1. Monthly return of each security
+#     monthly_return = history.Close.pct_change().dropna().mean()
+#     monthly_return = monthly_return * 100
+#     #2. Monthly volatility of each security
+#     monthly_volatility = history.Close.pct_change().dropna().std()
+#     monthly_volatility = monthly_volatility * 100
+#     #3. Covariance of monthly returns of each security and the market
+#     covariance = history.Close.pct_change().dropna().cov(market_history.Close.pct_change().dropna())
+#     #4. Beta of each security
+#     beta = covariance / market_volatility
+#     #5. Alpha of each security
+#     alpha = monthly_return - (self.risk_free_rate + beta * (market_return - self.risk_free_rate))
+#     #6. Sharpe ratio of each security
+#     sharpe_ratio = (monthly_return - self.risk_free_rate) / monthly_volatility
+#     #9. Treynor ratio of each security
+#     treynor_ratio = (monthly_return - self.risk_free_rate) / beta
+#     #10. Information ratio of each security
+#     information_ratio = monthly_return / monthly_volatility
+#     #11. Sortino ratio of each security
+#     sortino_ratio = (monthly_return - self.risk_free_rate) / monthly_volatility
+#     #12. Jensen's alpha of each security
+#     jensens_alpha = (monthly_return - self.risk_free_rate) - (beta * (market_return - self.risk_free_rate))
+#     #13. Market capitalisation of each security
+#     market_cap = security.MarketCap
+#     #14. Price to earnings ratio of each security
+#     p_e_ratio = security.PriceToEarningsRatio
+#     #15. Price to book ratio of each security
+#     p_b_ratio = security.PriceToBookRatio

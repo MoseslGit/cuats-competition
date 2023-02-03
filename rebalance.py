@@ -1,7 +1,7 @@
 import numpy as np
 
 # Rebalance portfolio based on current portfolio performance
-def adjust(current_portfolio, market_condition, historical_data, risk_free_rate, thresholds):
+def adjust(current_portfolio, market_condition, historical_data, risk_free_rate, thresholds, portfolio_returns):
     
     # Calculate performance factors for each asset
     risks, returns, diversification = calculate_factors(historical_data, current_portfolio)
@@ -22,24 +22,29 @@ def adjust(current_portfolio, market_condition, historical_data, risk_free_rate,
         # In high inflation situations, rebalance less; in high volatility situations tend to reduce size
         strong_buy = [1.2, 1.5, 1.2, 1.2]
         buy = [1, 1.2, 1, 1]
-        sell = [-1.2, 0.8, 0.3, 0.1]
-        strong_sell = [-1.5, 0.3, 0.5, 0.1]
+        sell = [-1.2, 0.8, 0.8, 0.8]
+        strong_sell = [-1.5, 0.6, 0.7, 0.7]
 
         # Calculate MACD for each asset
         prices = historical_data.loc[symbol]['close']
         macd = calculate_macd(prices, thresholds['short_window'], thresholds['long_window'])
 
         # If the sharpe ratio is above the threshold, and the MACD is positive, increase allocation to asset
-        if sharpe_ratios[symbol] >= threshold_sharpe_ratios[symbol]:
-            if macd > 0:
+        if macd > 0:
+            if sharpe_ratios[symbol] >= threshold_sharpe_ratios[symbol]:
                 current_portfolio[symbol] = abs(weight)*strong_buy[market_condition - 1]
             else:
                 current_portfolio[symbol] = abs(weight)*buy[market_condition - 1]
+        # If the sharpe ratio is below the threshold, and the MACD is negative, decrease allocation to asset
         else:
-            if macd > 0:
-                current_portfolio[symbol] = abs(weight)*sell[market_condition - 1]
-            else:
+            if sharpe_ratios[symbol] <= threshold_sharpe_ratios[symbol]:
                 current_portfolio[symbol] = abs(weight)*strong_sell[market_condition - 1]
+            else:
+                current_portfolio[symbol] = abs(weight)*sell[market_condition - 1]
+                
+        # If the portfolio is doing well, scale up
+        if portfolio_returns > 0:
+            current_portfolio[symbol] = abs(weight)*1.5
 
     return current_portfolio
 

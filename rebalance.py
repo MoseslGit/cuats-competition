@@ -1,3 +1,6 @@
+#region imports
+from AlgorithmImports import *
+#endregion
 import numpy as np
 
 # Rebalance portfolio based on current portfolio performance
@@ -21,8 +24,8 @@ def adjust(current_portfolio, market_condition, historical_data, risk_free_rate,
         # In crisis market, bias towards selling; in steady states bias towards top momentum performers
         # In high inflation situations, rebalance less; in high volatility situations tend to reduce size
         strong_buy = [1.2, 1.5, 1.2, 1.2]
-        buy = [1, 1.2, 1, 1]
-        sell = [-1.2, 0.8, 0.8, 0.8]
+        buy = [1, 1, 1, 1]
+        sell = [-1.2, 1, 0.8, 0.8]
         strong_sell = [-1.5, 0.6, 0.7, 0.7]
 
         # Calculate MACD for each asset
@@ -44,8 +47,7 @@ def adjust(current_portfolio, market_condition, historical_data, risk_free_rate,
                 
         # If the portfolio is doing well, scale up
         if portfolio_returns > 0:
-            current_portfolio[symbol] = abs(weight)*1.5
-
+            current_portfolio[symbol] = abs(weight)*1.1
     return current_portfolio
 
 # Take exponential weighted moving average, using in MACD calculation

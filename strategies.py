@@ -1,3 +1,6 @@
+#region imports
+from AlgorithmImports import *
+#endregion
 import numpy as np
 
 # Execute trading strategy for crisis market condition
@@ -35,7 +38,8 @@ def steady_state_strategy(historical_data, securities):
     # Bias the portfolio towards tech equities
     if "TQQQ" not in basket:
         basket.append("TQQQ")
-
+    if "SPY" not in basket:
+        basket.append("SPY")
     # Even out weights
     for symbol in basket:
         updated_portfolio[symbol] = 1/len(basket)

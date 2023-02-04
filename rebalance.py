@@ -47,7 +47,12 @@ def adjust(current_portfolio, market_condition, historical_data, risk_free_rate,
                 
         # If the portfolio is doing well, scale up
         if portfolio_returns > 0:
-            current_portfolio[symbol] = abs(weight)*1.1
+            if market_condition == 2:
+                current_portfolio[symbol] = abs(weight)*0.6
+            else:
+                current_portfolio[symbol] = abs(weight)*1.2
+        else:
+            current_portfolio[symbol] = abs(weight)*0.5
     return current_portfolio
 
 # Take exponential weighted moving average, using in MACD calculation

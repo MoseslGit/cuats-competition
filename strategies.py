@@ -49,12 +49,14 @@ def steady_state_strategy(historical_data, securities):
 # Execute trading strategy for inflation market condition
 def inflation_strategy(historical_data, securities):
     
-    # Buy Gold as an inflation hedge, and invest in bonds
+    # Buy Gold as an inflation hedge, and invest in equities and bonds
     updated_portfolio = {}
 
-    updated_portfolio["XAGUSD"] = 0.5
-    updated_portfolio["UBT"] = 0.25
-    updated_portfolio["UST"] = 0.25
+    updated_portfolio["TQQQ"] = 0.2
+    updated_portfolio["SPY"] = 0.5
+    updated_portfolio["XAGUSD"] = 0.1
+    updated_portfolio["UBT"] = 0.1
+    updated_portfolio["UST"] = 0.1
 
     return updated_portfolio
 
@@ -65,5 +67,6 @@ def woi_strategy(historical_data, securities):
 
     updated_portfolio["UBT"] = 0.33
     updated_portfolio["UST"] = 0.33
+    updated_portfolio["TQQQ"] = -0.1
 
     return updated_portfolio

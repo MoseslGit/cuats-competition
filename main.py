@@ -11,8 +11,8 @@ class TradingStrategy(QCAlgorithm):
 
         self.SetBenchmark("SPY")
         
-        self.SetStartDate(2015, 1, 1)
-        self.SetEndDate(2022, 1, 1)
+        self.SetStartDate(2016, 2, 1)
+        self.SetEndDate(2023, 2, 1)
 
         self.SetCash(100000)
         self.first_iteration = True
@@ -113,9 +113,9 @@ class TradingStrategy(QCAlgorithm):
         # Call strategy from strategies.py based on market condition
         if self.market_condition == 1:
             updated_portfolio = strategies.crisis_strategy(historical_data, self.ticker)
-        elif self.market_condition == 3:
+        elif self.market_condition == 0:
             updated_portfolio = strategies.steady_state_strategy(historical_data, self.ticker)
-        elif self.market_condition == 2:
+        elif self.market_condition == 3:
             updated_portfolio = strategies.inflation_strategy(historical_data, self.ticker)
         else:
             updated_portfolio = strategies.woi_strategy(historical_data, self.ticker)

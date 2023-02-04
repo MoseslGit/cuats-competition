@@ -5,6 +5,10 @@ import numpy as np
 
 # Execute trading strategy for crisis market condition
 def crisis_strategy(historical_data, securities):
+    """Strategy in crisis situations. Called on market_condition.
+    :param array historical_data: 30-day data for securities
+    :param array securities: list of securities that we own
+    """
 
     # Short equities, small allocation to bonds and gold as we go risk off
     updated_portfolio = {}
@@ -19,7 +23,7 @@ def crisis_strategy(historical_data, securities):
 
 # Execute trading strategy for steady state market condition
 def steady_state_strategy(historical_data, securities):
-    
+   
     # Follow market, biased towards tech equities
     updated_portfolio = {}
     momentum_comparison = {}

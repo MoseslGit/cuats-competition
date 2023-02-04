@@ -36,6 +36,7 @@ class TradingStrategy(QCAlgorithm):
         ubt = self.AddEquity("UBT", Resolution.Daily).Symbol
         ust = self.AddEquity("UST", Resolution.Daily).Symbol
         self.ticker = ["SPY", "TQQQ", "XAGUSD", "UBT", "UST"]
+
         # TODO I think this code needs refactoring: Cindy (using self.Securities.Keys)
         self.historytickers = [spy, tqqq, xagusd, ubt, ust] # List of securities to be used for history function
 
@@ -56,7 +57,7 @@ class TradingStrategy(QCAlgorithm):
         self.bollinger = BollingerBands(10, 2)
         self.bollinger.Updated += (lambda sender, updated: self.bollinger_window.Add(updated))
         self.bollinger_window = RollingWindow[IndicatorDataPoint](30)
-
+        
         # Set initial equal weights
         self.weightBySymbol = {"SPY" : 0.2, "TQQQ" : 0.2, "XAGUSD" : 0.2, "UBT" : 0.2, "UST" : 0.2}
 
@@ -73,7 +74,7 @@ class TradingStrategy(QCAlgorithm):
         
         self.SetWarmUp(100)
 
-        # Set leverage, and lower cash buffer to reduce unfilled orders
+        # Set Leverage, and lower cash buffer to reduce unfilled orders
         self.SetSecurityInitializer(self.CustomSecurityInitializer)
         self.Settings.FreePortfolioValuePercentage = 0.05
 
@@ -103,7 +104,6 @@ class TradingStrategy(QCAlgorithm):
         for symbol in rebalanced_portfolio:
             self.SetHoldings(symbol, rebalanced_portfolio[symbol])
         self.weightBySymbol = rebalanced_portfolio
-
     def Update(self):
         # Update portfolio weights every month depending on market conditions
         self.market_condition = self.PredictModel()

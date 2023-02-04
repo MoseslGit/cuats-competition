@@ -1,10 +1,11 @@
 MWBI Code:
 
-Exeuction Instructions:
+Execution Instructions:
 
-Download all files
-Open all files in the QuantConnect terminal
-Run main.py
+1. Download all files
+2. Open all files in the QuantConnect terminal
+3. Run main.py 
+
 For detailed breakdowns of the code, refer to comments around functions.
 
-Note: model still requires more data/parameters to be fully effective - maybe we can train outside of QuantConnect in the future.
+Note: model still requires more data/parameters - maybe we train outside of QuantConnect in the future.

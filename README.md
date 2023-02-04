@@ -1,6 +1,7 @@
 MWBI Code:
 
-Exeuction Instructions:
+Execution Instructions:
+
 1. Download all files
 2. Open all files in the QuantConnect terminal
 3. Run main.py 

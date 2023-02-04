@@ -11,8 +11,8 @@ class TradingStrategy(QCAlgorithm):
 
         self.SetBenchmark("SPY")
         
-        self.SetStartDate(2012, 1, 1)
-        self.SetEndDate(2022, 12, 31)
+        self.SetStartDate(2015, 1, 1)
+        self.SetEndDate(2022, 1, 1)
 
         self.SetCash(100000)
         self.first_iteration = True
@@ -89,6 +89,7 @@ class TradingStrategy(QCAlgorithm):
     def Rebalance(self):
         self.portfolio_returns = float(self.Portfolio.TotalPortfolioValue - self.previous_value)
         self.previous_value = float(self.Portfolio.TotalPortfolioValue)
+
         # Rebalance every week depending on portfolio performance
         historical_data = self.History(self.historytickers, 14, Resolution.Daily)
 
@@ -139,6 +140,11 @@ class TradingStrategy(QCAlgorithm):
             for symbol in self.weightBySymbol:
                 self.SetHoldings(symbol, self.weightBySymbol[symbol])
             self.first_iteration = False
+        self.Benchmark.Evaluate(self.Time)
+        # Stop loss
+        if self.Portfolio.TotalPortfolioValue/self.previous_value < 0.95:
+            self.Liquidate()
+            
 
     def IndicatorUpdate(self):
         """Update indicators."""

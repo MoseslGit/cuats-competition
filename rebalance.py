@@ -5,6 +5,15 @@ import numpy as np
 
 # Rebalance portfolio based on current portfolio performance
 def adjust(current_portfolio, market_condition, historical_data, risk_free_rate, thresholds, portfolio_returns):
+    """Rebalance portfolio according to performance
+    :param dict current_portfolio: weights and symbols of currently held portfolio
+    :param int market_condition: current market situation
+    :param dict historical_data: last 14 days of market data on securities held
+    :param int risk_free_rate: risk free rate used for calculations
+    :param dict thresholds: threshold values
+    :param int portfolio_returns: value of portfolio returns between each period
+    """
+
     
     # Calculate performance factors for each asset
     risks, returns, diversification = calculate_factors(historical_data, current_portfolio)
@@ -57,6 +66,11 @@ def adjust(current_portfolio, market_condition, historical_data, risk_free_rate,
 
 # Take exponential weighted moving average, using in MACD calculation
 def numpy_ewma(data, window):
+    """Strategy in crisis situations. Called on market_condition.
+    :param array data: array to calculate EWMA on
+    :param int window: what window to use
+    """
+
 
     alpha = 2 /(window + 1.0)
     alpha_rev = 1-alpha
@@ -75,6 +89,12 @@ def numpy_ewma(data, window):
 
 # Calculate MACD
 def calculate_macd(prices, short_window, long_window):
+    """Calculate Moving Average Covergence Divergence
+    :param array prices: historical prices for assets
+    :param int short_window: short window for EWMA
+    :param int long_wondow: long window for EWMA
+    """
+
     prices = np.array(prices)
     # Calculate short window exponential moving average
     short_ema = numpy_ewma(prices, short_window).mean()
@@ -89,6 +109,11 @@ def calculate_macd(prices, short_window, long_window):
 
 # Calculate performance factors for each asset
 def calculate_factors(historical_data, portfolio):
+    """Calculate sharpe-related factors
+    :param array historical_data: 30-day data for securities
+    :param dict portfolio: list of securities and their respective weights
+    """
+
     risks = {}
     mean_returns = {}
     diversification = {}

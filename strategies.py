@@ -3,14 +3,12 @@ from AlgorithmImports import *
 #endregion
 import numpy as np
 
-# Execute trading strategy for crisis market condition
 def crisis_strategy(historical_data, securities):
-    """Strategy in crisis situations. Called on market_condition.
+    """Execute trading strategy for crisis market condition.
+    Short equities, small allocation to bonds and gold as we go risk off. Called on market_condition.
     :param array historical_data: 30-day data for securities
     :param array securities: list of securities that we own
     """
-
-    # Short equities, small allocation to bonds and gold as we go risk off
     updated_portfolio = {}
 
     # Set initial weights for rebalancing
@@ -18,13 +16,12 @@ def crisis_strategy(historical_data, securities):
     updated_portfolio["XAGUSD"] = 0.2
     updated_portfolio["UST"] = 0.2
 
-
     return updated_portfolio
 
-# Execute trading strategy for steady state market condition
 def steady_state_strategy(historical_data, securities):
-   
-    # Follow market, biased towards tech equities
+    """Execute trading strategy for steady state market condition.
+    Follow the market, biased towards tech equities.
+    """
     updated_portfolio = {}
     momentum_comparison = {}
 
@@ -36,10 +33,10 @@ def steady_state_strategy(historical_data, securities):
             # Calculate the momentum over the last 2 weeks
             momentum_comparison[symbol] == returns[-14:].mean()
 
-    # Put the three symbols with the greatest momentum into a list
+    # Put three symbols with greatest momentum into list
     basket = sorted(momentum_comparison, key=momentum_comparison.get, reverse=True)[:3]
 
-    # Bias the portfolio towards tech equities
+    # Bias portfolio towards tech equities
     if "TQQQ" not in basket:
         basket.append("TQQQ")
     if "SPY" not in basket:
@@ -50,10 +47,10 @@ def steady_state_strategy(historical_data, securities):
 
     return updated_portfolio
 
-# Execute trading strategy for inflation market condition
 def inflation_strategy(historical_data, securities):
-    
-    # Buy Gold as an inflation hedge, and invest in equities and bonds
+    """Execute trading strategy for inflation market condition.
+    Buy Gold as an inflation hedge, and invest in equities and bonds.
+    """
     updated_portfolio = {}
 
     updated_portfolio["TQQQ"] = 0.2
@@ -66,7 +63,9 @@ def inflation_strategy(historical_data, securities):
 
 # Execute trading strategy for Walking on Ice market condition
 def woi_strategy(historical_data, securities):
-    # High volatility and uncertainty, so we go risk off with a bias towards bonds
+    """# Execute trading strategy for Walking on Ice market condition.
+    High volatility and uncertainty, so we go risk off with a bias towards bonds.
+    """
     updated_portfolio = {}
 
     updated_portfolio["UBT"] = 0.33

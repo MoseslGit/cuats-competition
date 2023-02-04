@@ -8,16 +8,14 @@ import statistics
 
 class TradingStrategy(QCAlgorithm):
     def Initialize(self):
-
         self.SetBenchmark("SPY")
-        
         self.SetStartDate(2016, 2, 1)
         self.SetEndDate(2023, 2, 1)
-
         self.SetCash(100000)
         self.first_iteration = True
         self.market_condition = 1
         self.previous_value = 100000
+        self.SetWarmUp(100)
 
         # Set estimated risk-free rate, as well as rebalancing thresholds for calculations
         self.risk_free_rate = 0.05
@@ -36,8 +34,6 @@ class TradingStrategy(QCAlgorithm):
         ubt = self.AddEquity("UBT", Resolution.Daily).Symbol
         ust = self.AddEquity("UST", Resolution.Daily).Symbol
         self.ticker = ["SPY", "TQQQ", "XAGUSD", "UBT", "UST"]
-
-        # TODO I think this code needs refactoring: Cindy (using self.Securities.Keys)
         self.historytickers = [spy, tqqq, xagusd, ubt, ust] # List of securities to be used for history function
 
         # ============= For model training =================
@@ -46,17 +42,10 @@ class TradingStrategy(QCAlgorithm):
         self.interest30 = self.AddData(Fred, Fred.CommercialPaper.Three0DayAAAssetbackedCommercialPaperInterestRate, Resolution.Daily).Symbol
         # Yield curve data
         self.ustres = self.AddData(USTreasuryYieldCurveRate, "USTYCR").Symbol
-        # US federal reserve 7-Day AA Financial Commercial Paper Interest Rate (in Percent)
-        self.interest7 = self.AddData(Fred, Fred.CommercialPaper.SevenDayAAFinancialCommercialPaperInterestRate, Resolution.Daily).Symbol
-        self.interest90 = self.AddData(Fred, Fred.CommercialPaper.NinetyDayAAFinancialCommercialPaperInterestRate, Resolution.Daily).Symbol
         # Set momentum indicator
         self.manual_mom = Momentum(30)
         self.manual_mom.Updated += (lambda sender, updated: self.mom_window.Add(updated))
         self.mom_window = RollingWindow[IndicatorDataPoint](30)
-        # Set Bollinger band indicator
-        self.bollinger = BollingerBands(10, 2)
-        self.bollinger.Updated += (lambda sender, updated: self.bollinger_window.Add(updated))
-        self.bollinger_window = RollingWindow[IndicatorDataPoint](30)
         
         # Set initial equal weights
         self.weightBySymbol = {"SPY" : 0.2, "TQQQ" : 0.2, "XAGUSD" : 0.2, "UBT" : 0.2, "UST" : 0.2}
@@ -71,8 +60,6 @@ class TradingStrategy(QCAlgorithm):
             self.DateRules.WeekStart("SPY"),
             self.TimeRules.AfterMarketOpen("SPY"),
             self.Rebalance)
-        
-        self.SetWarmUp(100)
 
         # Set Leverage, and lower cash buffer to reduce unfilled orders
         self.SetSecurityInitializer(self.CustomSecurityInitializer)
@@ -87,8 +74,7 @@ class TradingStrategy(QCAlgorithm):
         security.SetLeverage(5)
 
     def Rebalance(self):
-        """Called by Schedule function in QuantConnect automatically every week
-        """
+        """Called by Schedule function in QuantConnect automatically every week."""
         self.portfolio_returns = float(self.Portfolio.TotalPortfolioValue - self.previous_value)
         self.previous_value = float(self.Portfolio.TotalPortfolioValue)
 
@@ -107,10 +93,10 @@ class TradingStrategy(QCAlgorithm):
         for symbol in rebalanced_portfolio:
             self.SetHoldings(symbol, rebalanced_portfolio[symbol])
         self.weightBySymbol = rebalanced_portfolio
+
     def Update(self):
-        """Called by Schedule function in QuantConnect automatically every month
-        """
-        # Update portfolio weights every month depending on market conditions
+        """Called by Schedule function in QuantConnect automatically every month.
+        Update portfolio weights every month depending on market conditions."""
         self.market_condition = self.PredictModel()
         historical_data = self.History(self.historytickers, 30, Resolution.Daily)
 
@@ -133,7 +119,6 @@ class TradingStrategy(QCAlgorithm):
         for symbol in updated_portfolio:
             self.SetHoldings(symbol, updated_portfolio[symbol])
         self.weightBySymbol = updated_portfolio
-        
 
     def OnData(self, data):
         """Called every time data updates automatically.
@@ -151,10 +136,6 @@ class TradingStrategy(QCAlgorithm):
         # Stop loss
         if self.Portfolio.TotalPortfolioValue/self.previous_value < 0.95:
             self.Liquidate()
-            
-
-    def IndicatorUpdate(self):
-        """Update indicators."""
         
     def TrainModel(self, startyear, numyears):
         """Method to train model. Should only be called once at initialisation unless update needed.
@@ -170,12 +151,10 @@ class TradingStrategy(QCAlgorithm):
         
         # Save data for training
         spy_returns = []
-        tqqq_returns = []
         spy_volatilities = []
         vix_volatilities = []
         spy_sharpes = []
         spy_momentums = []
-        yield_ratios = []
         interest_rates = []
 
         # Use S&P as market data
@@ -195,19 +174,16 @@ class TradingStrategy(QCAlgorithm):
                 market_return = history.loc["spy"].close.pct_change().dropna().mean()
                 market_return = market_return * 100
                 spy_returns.append(market_return)
-                # #2. Monthly tech stock return - available from 2011 (percent)
-                # tqqq_return = history.loc["tqqq"].close.pct_change().dropna().mean()
-                # tqqq_returns.append(tqqq_return * 100)
-                #3. Monthly volatility of the market (percent)
+                #2. Monthly volatility of the market (percent)
                 market_volatility = history.loc["spy"].close.pct_change().dropna().std()
                 market_volatility = market_volatility * 100
                 spy_volatilities.append(market_volatility)
-                #4. Monthly VIX average for volatility
+                #3. Monthly VIX average for volatility
                 vix_volatilities.append(history.loc["vix"].close.dropna().mean())
-                #5. Sharpe ratio of the market
+                #4. Sharpe ratio of the market
                 sharpe_ratio = (market_return - self.risk_free_rate) / market_volatility
                 spy_sharpes.append(sharpe_ratio)
-                #6. Monthly average day to day momentum of market
+                #5. Monthly average day to day momentum of market
                 for time, price in history.loc["spy"]["close"].items():
                     self.manual_mom.Update(time, price)
                 momentum_list = [item.Value for item in self.mom_window]
@@ -215,11 +191,7 @@ class TradingStrategy(QCAlgorithm):
                     spy_momentums.append(statistics.fmean(momentum_list))
                 else: # No data, act as if neutral
                     spy_momentums.append(0)
-                # #7. US Treasury price - available from 2012
-                # # We want to look at the yield curve, so take ratio of one and ten year yields
-                # ustres_history = self.History(self.ustres, start_date, end_date, Resolution.Daily)
-                # yield_ratios.append(ustres_history["oneyear"].dropna().mean()/ustres_history["tenyear"].dropna().mean())
-                #8. US federal reserve 30-day AA asset-backed commercial paper interest rate (percent)
+                #6. US federal reserve 30-day AA asset-backed commercial paper interest rate (percent)
                 interest30_history = self.History(self.interest30, start_date, end_date, Resolution.Daily)
                 interest_rates.append(interest30_history["value"].dropna().mean())
 
@@ -227,43 +199,33 @@ class TradingStrategy(QCAlgorithm):
         data = list(zip(spy_returns, spy_volatilities, vix_volatilities, spy_sharpes, spy_momentums, interest_rates))
 
         model = mixture.BayesianGaussianMixture(n_components=4, covariance_type='full', random_state=0).fit(data)
-        np.savetxt("means.csv", model.means_, delimiter=",")
         self.Log(str(model.means_))
         self.Log(str(model.covariances_[0]))
-        np.savetxt("covs.csv", model.covariances_[0], delimiter=",")
         self.model_training = False
         return model
 
     def PredictModel(self):
-        """Predict on one datapoint averaged from data from one month"""
+        """Predict on one datapoint averaged from data from one month."""
         # Initialise test dataset - 1xn where n is number of predictive variables
         test_data = np.empty((1,6))
         self.mom_window.Reset()
         history = self.History(self.Securities.Keys, 30, Resolution.Daily)
 
-        # # #2. Monthly return of tech stocks
-        # # tqqq_return = history.loc["tqqq"].close.pct_change().dropna().mean()
-        # # test_data[0,1] = tqqq_return * 100
-        # #9. Ratio of 90-day to 7-day AA asset-backed commercial paper interest rate (percent)
-        # interest7_history = self.History(self.interest7, 30, Resolution.Daily)
-        # interest90_history = self.History(self.interest90, 90, Resolution.Daily)
-        # test_data[0,8] = interest7_history["value"].dropna().mean()/interest90_history["value"].dropna().mean()
-
         #1. Monthly return of SPY
         market_return = history.loc["spy"].close.pct_change().dropna().mean()
         market_return = market_return * 100
         test_data[0,0] = market_return
-        #3. Monthly volatility of SPY
+        #2. Monthly volatility of SPY
         market_volatility = history.loc["spy"].close.pct_change().dropna().std()
         market_volatility = market_volatility * 100
         test_data[0,1] = market_volatility
-        #4. Monthly VIX average for volatility
+        #3. Monthly VIX average for volatility
         vix = history.loc["vix"].close.mean()
         test_data[0,2] = vix
-        #5. Sharpe ratio of SPY
+        #4. Sharpe ratio of SPY
         sharpe_ratio = (market_return - self.risk_free_rate) / market_volatility
         test_data[0,3] = sharpe_ratio
-        #6. Momentum of SPY
+        #5. Momentum of SPY
         for time, price in history.loc["spy"]["close"].items():
             self.manual_mom.Update(time, price)
         momentum_list = [item.Value for item in self.mom_window]
@@ -271,7 +233,7 @@ class TradingStrategy(QCAlgorithm):
             test_data[0,4] = statistics.fmean(momentum_list)
         else: # No data, act as if neutral
             test_data[0,4] = 0
-        #8. 30-day AA asset-backed commercial paper interest rate (percent)
+        #6. 30-day AA asset-backed commercial paper interest rate (percent)
         interest30_history = self.History(self.interest30, 30, Resolution.Daily)
         test_data[0,5] = interest30_history["value"].dropna().mean()
 

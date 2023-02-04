@@ -87,6 +87,8 @@ class TradingStrategy(QCAlgorithm):
         security.SetLeverage(5)
 
     def Rebalance(self):
+        """Called by Schedule function in QuantConnect automatically every week
+        """
         self.portfolio_returns = float(self.Portfolio.TotalPortfolioValue - self.previous_value)
         self.previous_value = float(self.Portfolio.TotalPortfolioValue)
 
@@ -106,6 +108,8 @@ class TradingStrategy(QCAlgorithm):
             self.SetHoldings(symbol, rebalanced_portfolio[symbol])
         self.weightBySymbol = rebalanced_portfolio
     def Update(self):
+        """Called by Schedule function in QuantConnect automatically every month
+        """
         # Update portfolio weights every month depending on market conditions
         self.market_condition = self.PredictModel()
         historical_data = self.History(self.historytickers, 30, Resolution.Daily)
@@ -132,6 +136,9 @@ class TradingStrategy(QCAlgorithm):
         
 
     def OnData(self, data):
+        """Called every time data updates automatically.
+        :param array data: Historical data on assets in our portfolio
+        """
         if self.IsWarmingUp or self.model_training:
             return
 

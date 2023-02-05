@@ -18,7 +18,7 @@ The expected value of the mixing coefficients, given Dirichlet priors $\alpha_0$
 
 $$\mathbb{E}[\pi_k] = \frac{\alpha_0 + N_k}{K \alpha_0 + N}$$ 
 
-As $alpha_0 \to \infty$, $\mathbb{E}[\pi_k] \to 1/K$. In general, larger values lead to more evenly weighted clusters, but too large may result in unnecessary splitting. As $alpha_0 \to 0$, $\mathbb{E}[\pi_k] \to 0$. Smaller values should not be used in this instance as it may result in setting one or more clusters to zero.
+As $\alpha_0 \to \infty$, $\mathbb{E}[\pi_k] \to 1/K$. In general, larger values lead to more evenly weighted clusters, but too large may result in unnecessary splitting. As $\alpha_0 \to 0$, $\mathbb{E}[\pi_k] \to 0$. Smaller values should not be used in this instance as it may result in setting one or more clusters to zero.
 
 ### Additional variables
 Any number of additional data variables can be added simply by extending the number of columns in the data array. In practice it is found that if some particularly nonpredictive variables are used, the clustering becomes less effective. These can be removed by decomposing individual cluster Gaussian covariances into an eigenvalue-eigenvector decomposition, and projecting each of the eigenvectors onto their n closest axes. Tallying up the number of times an axis corresponds to a large eigenvalue for all pairs and all clusters indicates how relevant an axis is. 

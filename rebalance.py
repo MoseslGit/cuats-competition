@@ -6,12 +6,13 @@ import numpy as np
 # Rebalance portfolio based on current portfolio performance
 def adjust(current_portfolio, market_condition, historical_data, risk_free_rate, thresholds, portfolio_returns):
     """Rebalance portfolio according to performance.
-    :param dict current_portfolio: weights and symbols of currently held portfolio
+    :param dict[str, float] current_portfolio: symbols and weights of currently held portfolio
     :param int market_condition: current market situation
-    :param dict historical_data: last 14 days of market data on securities held
+    :param dataframe historical_data: last 14 days of market data on securities held
     :param int risk_free_rate: risk free rate used for calculations
-    :param dict thresholds: threshold values
+    :param dict[str, float] thresholds: threshold values
     :param int portfolio_returns: value of portfolio returns between each period
+    :return dict[str, float] current_portfolio: symbols and weights of new portfolio
     """
     # Calculate performance factors for each asset
     risks, returns, diversification = calculate_factors(historical_data, current_portfolio)
@@ -60,6 +61,7 @@ def adjust(current_portfolio, market_condition, historical_data, risk_free_rate,
                 current_portfolio[symbol] = abs(weight)*1.2
         else:
             current_portfolio[symbol] = abs(weight)*0.5
+
     return current_portfolio
 
 def numpy_ewma(data, window):
@@ -141,7 +143,6 @@ def calculate_factors(historical_data, portfolio):
         diversification[symbol] = diversification_benefit
 
     return risks, mean_returns, diversification
-    
 
 
 

@@ -2,7 +2,7 @@ from AlgorithmImports import *
 import numpy as np
 import strategies
 import rebalance
-from sklearn import mixture
+from sklearn import mixture, preprocessing
 import pandas as pd
 import statistics
 
@@ -47,7 +47,7 @@ class TradingStrategy(QCAlgorithm):
         self.manual_mom.Updated += (lambda sender, updated: self.mom_window.Add(updated))
         self.mom_window = RollingWindow[IndicatorDataPoint](30)
         
-        # Set initial equal weights
+        # Set initial equal weights - initialises portfolio
         self.weightBySymbol = {"SPY" : 0.2, "TQQQ" : 0.2, "XAGUSD" : 0.2, "UBT" : 0.2, "UST" : 0.2}
 
         # Schedule updating and rebalancing of portfolio weights
@@ -55,7 +55,6 @@ class TradingStrategy(QCAlgorithm):
             self.DateRules.MonthStart("SPY"),
             self.TimeRules.AfterMarketOpen("SPY"),
             self.Update)
-
         self.Schedule.On(
             self.DateRules.WeekStart("SPY"),
             self.TimeRules.AfterMarketOpen("SPY"),
@@ -67,10 +66,10 @@ class TradingStrategy(QCAlgorithm):
 
         # Model setup
         self.model_training = False
-        self.model = self.TrainModel(2001, 20)
-        
-    # Set leverage to 5
+        self.model = self.TrainModel(2001, 21)
+
     def CustomSecurityInitializer(self, security):
+        """Set leverage to 5."""
         security.SetLeverage(5)
 
     def Rebalance(self):
@@ -122,7 +121,7 @@ class TradingStrategy(QCAlgorithm):
 
     def OnData(self, data):
         """Called every time data updates automatically.
-        :param array data: Historical data on assets in our portfolio
+        :param dataframe data: Historical data on assets in our portfolio
         """
         if self.IsWarmingUp or self.model_training:
             return
@@ -139,8 +138,10 @@ class TradingStrategy(QCAlgorithm):
         
     def TrainModel(self, startyear, numyears):
         """Method to train model. Should only be called once at initialisation unless update needed.
+        Note the model cluster assingments may change if argument random_state is not fixed.
         :param int startyear: Start year of training data in YYYY format
         :param int years: Number of years of training data to use
+        :return sklearn GMM model: trained model
         """
         self.Debug(str(('Start training at {}'.format(self.Time))))
         self.model_training = True
@@ -170,17 +171,17 @@ class TradingStrategy(QCAlgorithm):
                 # Get history of all securities
                 history = history = self.History(self.Securities.Keys, start_date, end_date, Resolution.Daily)
 
-                #1. Monthly return of the market (percent)
+                #1. Monthly return of SPY (percent)
                 market_return = history.loc["spy"].close.pct_change().dropna().mean()
                 market_return = market_return * 100
                 spy_returns.append(market_return)
-                #2. Monthly volatility of the market (percent)
+                #2. Monthly volatility of SPY (percent)
                 market_volatility = history.loc["spy"].close.pct_change().dropna().std()
                 market_volatility = market_volatility * 100
                 spy_volatilities.append(market_volatility)
                 #3. Monthly VIX average for volatility
                 vix_volatilities.append(history.loc["vix"].close.dropna().mean())
-                #4. Sharpe ratio of the market
+                #4. Sharpe ratio of SPY
                 sharpe_ratio = (market_return - self.risk_free_rate) / market_volatility
                 spy_sharpes.append(sharpe_ratio)
                 #5. Monthly average day to day momentum of market
@@ -198,24 +199,32 @@ class TradingStrategy(QCAlgorithm):
         # 2D array: years*12 x n where n is number of predictive variables
         data = list(zip(spy_returns, spy_volatilities, vix_volatilities, spy_sharpes, spy_momentums, interest_rates))
 
-        model = mixture.BayesianGaussianMixture(n_components=4, covariance_type='full', random_state=0).fit(data)
+        ## Scale data option
+        # data = np.array(data)
+        # scaler = preprocessing.StandardScaler().fit(data)
+        # data_scaled = scaler.transform(data)
+
+        # Train model
+        model = mixture.BayesianGaussianMixture(n_components=4, covariance_type='full', weight_concentration_prior=1, random_state=0).fit(data)
         self.Log(str(model.means_))
-        self.Log(str(model.covariances_[0]))
+        self.Log(str(model.covariances_))
         self.model_training = False
         return model
 
     def PredictModel(self):
         """Predict on one datapoint averaged from data from one month."""
+        # Reset momentum rolling window
+        self.mom_window.Reset()
+        # Get history of all securities
+        history = self.History(self.Securities.Keys, 30, Resolution.Daily)
         # Initialise test dataset - 1xn where n is number of predictive variables
         test_data = np.empty((1,6))
-        self.mom_window.Reset()
-        history = self.History(self.Securities.Keys, 30, Resolution.Daily)
 
-        #1. Monthly return of SPY
+        #1. Monthly return of SPY (percent)
         market_return = history.loc["spy"].close.pct_change().dropna().mean()
         market_return = market_return * 100
         test_data[0,0] = market_return
-        #2. Monthly volatility of SPY
+        #2. Monthly volatility of SPY (percent)
         market_volatility = history.loc["spy"].close.pct_change().dropna().std()
         market_volatility = market_volatility * 100
         test_data[0,1] = market_volatility
@@ -236,8 +245,5 @@ class TradingStrategy(QCAlgorithm):
         #6. 30-day AA asset-backed commercial paper interest rate (percent)
         interest30_history = self.History(self.interest30, 30, Resolution.Daily)
         test_data[0,5] = interest30_history["value"].dropna().mean()
-
-        # Debug predictive values
-        self.Debug(str(self.Time) + str(self.model.predict(test_data)))
 
         return self.model.predict(test_data)[0]

@@ -8,6 +8,7 @@ def crisis_strategy(historical_data, securities):
     Short equities, small allocation to bonds and gold as we go risk off. Called on market_condition.
     :param array historical_data: 30-day data for securities
     :param array securities: list of securities that we own
+    :return dict[str, float] updated_portfolio
     """
     updated_portfolio = {}
 
@@ -21,6 +22,7 @@ def crisis_strategy(historical_data, securities):
 def steady_state_strategy(historical_data, securities):
     """Execute trading strategy for steady state market condition.
     Follow the market, biased towards tech equities.
+    :return dict[str, float] updated_portfolio
     """
     updated_portfolio = {}
     momentum_comparison = {}
@@ -50,6 +52,7 @@ def steady_state_strategy(historical_data, securities):
 def inflation_strategy(historical_data, securities):
     """Execute trading strategy for inflation market condition.
     Buy Gold as an inflation hedge, and invest in equities and bonds.
+    :return dict[str, float] updated_portfolio
     """
     updated_portfolio = {}
 
@@ -65,6 +68,7 @@ def inflation_strategy(historical_data, securities):
 def woi_strategy(historical_data, securities):
     """# Execute trading strategy for Walking on Ice market condition.
     High volatility and uncertainty, so we go risk off with a bias towards bonds.
+    :return dict[str, float] updated_portfolio
     """
     updated_portfolio = {}
 

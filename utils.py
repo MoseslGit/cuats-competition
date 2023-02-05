@@ -15,23 +15,52 @@ cov2 = np.array([[6.02348349e-02,-9.86748943e-03,-2.78588256e-02,3.44697655e-02,
 cov3 = np.array([[2.33486370e-02,1.63393056e-04,-3.60046458e-02,1.45586485e-02,9.13635344e-02,6.15897870e-02],[1.63393056e-04,3.25649452e-02,2.04282481e-01,1.70951778e-03,4.48130940e-02,6.82207127e-02],[-3.60046458e-02,2.04282481e-01,3.15735136e+00,7.36631563e-03,-2.16151226e-01,-6.08526178e-02],[1.45586485e-02,1.70951778e-03,7.36631563e-03,9.81194874e-03,5.86924208e-02,3.52841009e-02],[9.13635344e-02,4.48130940e-02,-2.16151226e-01,5.86924208e-02,7.91495055e-01,5.78903988e-01],[6.15897870e-02,6.82207127e-02,-6.08526178e-02,3.52841009e-02,5.78903988e-01,6.48033348e-01]])
 
 covariances = np.vstack((cov0,cov1,cov2,cov3))
-np.savetxt("meandata.csv", means, fmt='%f', delimiter=",")
-np.savetxt("covdata.csv", covariances, fmt='%f', delimiter=",")
-color_iter = itertools.cycle(["navy", "c", "cornflowerblue", "gold", "darkorange"])
+covs = np.stack((cov0,cov1,cov2,cov3), axis=0)
+# np.savetxt("meandata.csv", means, fmt='%f', delimiter=",")
+# np.savetxt("covdata.csv", covariances, fmt='%f', delimiter=",")
 
-def plot_results(X, Y, means, covariances, index, title):
-    splot = plt.subplot(5, 1, 1 + index)
+color_iter = itertools.cycle(["navy", "cornflowerblue", "gold", "darkorange"])
+
+reduced_covs = np.array([[[9.01335046e-02,7.70115761e-03],[7.70115761e-03,6.87247192e-01]],[[4.50745675e-02,4.55744210e-01],[4.55744210e-01,2.05645373e+01]],[[5.09218247e-02,5.25518136e-02],[5.25518136e-02,3.94158813e+00]],[[5.07691597e-02,5.03554371e-02],[5.03554371e-02,3.93164443e+00]]])
+
+reduced_means = np.array([[-0.0251199,-0.03948504],[0.13621489,-1.8610608,],[0.01362694,-0.42629251],[0.01230244,-0.44204143]])
+
+for i in range(4):
+    print(linalg.eigh(covs[i]))
+
+# def plot_results(X, Y, means, covariances, index, title):
+#     splot = plt.subplot(5, 1, 1 + index)
+#     for i, (mean, covar, color) in enumerate(zip(means, covariances, color_iter)):
+#         v, w = linalg.eigh(covar)
+#         v = 2.0 * np.sqrt(2.0) * np.sqrt(v)
+#         u = w[0] / linalg.norm(w[0])
+#         # as the DP will not use every component it has access to
+#         # unless it needs it, we shouldn't plot the redundant
+#         # components.
+#         if not np.any(Y == i):
+#             continue
+#         plt.scatter(X[Y == i, 0], X[Y == i, 1], 0.8, color=color)
+
+#         # Plot an ellipse to show the Gaussian component
+#         angle = np.arctan(u[1] / u[0])
+#         angle = 180.0 * angle / np.pi  # convert to degrees
+#         ell = mpl.patches.Ellipse(mean, v[0], v[1], angle=180.0 + angle, color=color)
+#         ell.set_clip_box(splot.bbox)
+#         ell.set_alpha(0.5)
+#         splot.add_artist(ell)
+
+#     plt.xlim(-6.0, 4.0 * np.pi - 6.0)
+#     plt.ylim(-5.0, 5.0)
+#     plt.title(title)
+#     plt.xticks(())
+#     plt.yticks(())
+
+def plot_results(means, covariances, index, title):
+    splot = plt.subplot(1, 1, 1 + index)
     for i, (mean, covar, color) in enumerate(zip(means, covariances, color_iter)):
         v, w = linalg.eigh(covar)
         v = 2.0 * np.sqrt(2.0) * np.sqrt(v)
         u = w[0] / linalg.norm(w[0])
-        # as the DP will not use every component it has access to
-        # unless it needs it, we shouldn't plot the redundant
-        # components.
-        if not np.any(Y == i):
-            continue
-        plt.scatter(X[Y == i, 0], X[Y == i, 1], 0.8, color=color)
-
         # Plot an ellipse to show the Gaussian component
         angle = np.arctan(u[1] / u[0])
         angle = 180.0 * angle / np.pi  # convert to degrees
@@ -39,12 +68,14 @@ def plot_results(X, Y, means, covariances, index, title):
         ell.set_clip_box(splot.bbox)
         ell.set_alpha(0.5)
         splot.add_artist(ell)
-
-    plt.xlim(-6.0, 4.0 * np.pi - 6.0)
-    plt.ylim(-5.0, 5.0)
-    plt.title(title)
-    plt.xticks(())
-    plt.yticks(())
+    plt.xlabel("SPY returns")
+    plt.ylabel("SPY momentum")
+    plt.xlim(-5.0, 5)
+    plt.ylim(-9.0, 5.0)
+    plt.xticks()
+    plt.yticks()
+    plt.savefig(title+".png", dpi=300)
+    plt.show()
 
 def plot_samples(X, Y, n_components, index, title):
     plt.subplot(5, 1, 4 + index)
@@ -61,3 +92,6 @@ def plot_samples(X, Y, n_components, index, title):
     plt.title(title)
     plt.xticks(())
     plt.yticks(())
+
+if __name__ == "__main__":
+    plot_results(reduced_means.tolist(), reduced_covs.tolist(), 0, "Clusters")

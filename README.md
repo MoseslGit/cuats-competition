@@ -1,6 +1,6 @@
-## Mid With Bad Ideas Code
+# Mid With Bad Ideas Code
 
-# Execution Instructions
+## Execution Instructions
 
 1. Download all files
 2. Open all files in the QuantConnect terminal
@@ -8,7 +8,7 @@
 
 For detailed breakdowns of the code, refer to comments around functions.
 
-# Model Training
+## Model Training
 A Bayesian Gaussian mixture model from sklearn is used. For documentation, refer to https://scikit-learn.org/stable/modules/mixture.html#bgmm. The BIC information criterion is used by this package naturally to decide the ideal number of clusters below a maximum set limit. 
 In practice it is found that setting of the priors has little effect on cluster assignments for this 4-cluster case. In general, larger values lead to more evenly weighted clusters, but too large may result in unnecessary splitting. The default weight concentration prior (for mixing coefficients) for the Dirichlet distribution is 1.0. We tested up to 100 with no discernible difference. Smaller values should not be used in this instance as it may result in setting one or more clusters to zero.
 

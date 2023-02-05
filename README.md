@@ -1,6 +1,6 @@
-MWBI Code:
+## Mid With Bad Ideas Code
 
-Execution Instructions:
+# Execution Instructions
 
 1. Download all files
 2. Open all files in the QuantConnect terminal

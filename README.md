@@ -14,7 +14,7 @@ A Bayesian Gaussian mixture model from sklearn is used. For documentation, refer
 ### Prior parameters
 In practice it is found that setting of the priors has little effect on cluster assignments for this 4-cluster case. The default weight concentration prior (for mixing coefficients) for the Dirichlet distribution is 1.0. We tested up to 100 with no discernible difference.
 
-The expected value of the mixing coefficients, given Dirichlet priors $\alpha_0$, $N_k$ datapoints assigned to a cluster, N datapoints in total, and K classes is given by
+The expected value of the mixing coefficients, given Dirichlet priors $\alpha_0$, $N_k$ datapoints assigned to a cluster, N datapoints in total, $\pi_k$ as the mixing coefficient for the kth class, and K classes in total is given by
 
 $$\mathbb{E}[\pi_k] = \frac{\alpha_0 + N_k}{K \alpha_0 + N}$$ 
 

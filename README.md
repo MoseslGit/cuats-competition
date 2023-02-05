@@ -1,5 +1,7 @@
 # Mid With Bad Ideas Code
 
+This is code for the Cambridge University Algorithmic Trading society 2023 trading competition, running on QuantConnect's platform.
+
 ## Execution Instructions
 
 1. Download all files

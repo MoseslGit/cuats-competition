@@ -8,6 +8,12 @@
 
 For detailed breakdowns of the code, refer to comments around functions.
 
+## Strategy Adjustment
+All strategies can be found in the strategies.py file, which is called in the Update function in main.py every month. Both the frequency and content of these strategies can be adjusted directly from these functions, with the only output required being portfolio symbols and their respective weights.
+
+## Rebalancing Adjustment
+Rebalancing is carried out in the adjust function within rebalance.py: parameters can be tuned with main.py under Initialization conditions, such as threshold values for portfolio adjustment. Outputs are an adjusted portfolio with symbols and their respective weights.
+
 ## Model Training
 A Bayesian Gaussian mixture model from sklearn is used. For documentation, refer to https://scikit-learn.org/stable/modules/mixture.html#bgmm. The BIC information criterion is used by this package naturally to decide the ideal number of clusters below a maximum set limit. 
 
